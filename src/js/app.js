@@ -15,16 +15,16 @@ const state = {
 function loadSampleData() {
   console.log("Loading sample data...");
   state.categories = [
-    { id: "income", name: "Income", parentId: null, type: "Income" },
-    { id: "salary", name: "Base Salary", parentId: "income", type: "Income" },
-    { id: "bonus", name: "Performance Bonus", parentId: "income", type: "Income" },
+    { id: "Income", name: "Income", parentId: null, type: "Income" },
+    { id: "Income > Base Salary", name: "Base Salary", parentId: "Income", type: "Income" },
+    { id: "Income > Performance Bonus", name: "Performance Bonus", parentId: "Income", type: "Income" },
 
-    { id: "food", name: "Food & Drinks", parentId: null, type: "Expense" },
-    { id: "restaurants", name: "Restaurants", parentId: "food", type: "Expense" },
-    { id: "delivery", name: "Food Delivery", parentId: "food", type: "Expense" },
+    { id: "Food & Drinks", name: "Food & Drinks", parentId: null, type: "Expense" },
+    { id: "Food & Drinks > Restaurants", name: "Restaurants", parentId: "Food & Drinks", type: "Expense" },
+    { id: "Food & Drinks > Food Delivery", name: "Food Delivery", parentId: "Food & Drinks", type: "Expense" },
 
-    { id: "life", name: "Life & Entertainment", parentId: null, type: "Expense" },
-    { id: "gifts", name: "Gifts", parentId: "life", type: "Expense" },
+    { id: "Life & Entertainment", name: "Life & Entertainment", parentId: null, type: "Expense" },
+    { id: "Life & Entertainment > Gifts", name: "Gifts", parentId: "Life & Entertainment", type: "Expense" },
   ];
 
   state.transactions = [
@@ -33,42 +33,170 @@ function loadSampleData() {
       date: "2025-10-01",
       description: "September Salary",
       amount: 16000,
-      categoryId: "salary",
+      categoryId: "Income > Base Salary",
     },
     {
       id: 2,
       date: "2025-10-03",
       description: "Dinner out",
       amount: -210,
-      categoryId: "restaurants",
+      categoryId: "Food & Drinks > Restaurants",
     },
     {
       id: 3,
       date: "2025-10-04",
       description: "Food delivery",
       amount: -95,
-      categoryId: "delivery",
+      categoryId: "Food & Drinks > Food Delivery",
     },
     {
       id: 4,
       date: "2025-09-29",
       description: "Gift for friend",
       amount: -150,
-      categoryId: "gifts",
+      categoryId: "Life & Entertainment > Gifts",
     },
   ];
 }
 
-// ----- Rendering -----
+// ----- Init -----
 function init() {
   console.log("Initialising app...");
   loadSampleData();
   setupPeriodFilter();
+  setupTabsAndCategoryEditor();
   renderCategoryTree();
   renderTransactionsTable();
   renderIncomeStatement();
 }
 
+// ----- Tabs + categories editor -----
+function setupTabsAndCategoryEditor() {
+  const dashTab = document.getElementById("tab-dashboard");
+  const catTab = document.getElementById("tab-categories");
+  const btnDash = document.getElementById("tab-btn-dashboard");
+  const btnCat = document.getElementById("tab-btn-categories");
+  const editor = document.getElementById("categories-editor");
+  const applyBtn = document.getElementById("apply-categories");
+
+  if (!dashTab || !catTab || !btnDash || !btnCat) return;
+
+  function setActiveTab(tab) {
+    if (tab === "dashboard") {
+      dashTab.classList.add("active");
+      catTab.classList.remove("active");
+      btnDash.classList.add("active");
+      btnCat.classList.remove("active");
+    } else {
+      dashTab.classList.remove("active");
+      catTab.classList.add("active");
+      btnDash.classList.remove("active");
+      btnCat.classList.add("active");
+    }
+  }
+
+  btnDash.addEventListener("click", () => {
+    setActiveTab("dashboard");
+  });
+
+  btnCat.addEventListener("click", () => {
+    if (editor && editor.value.trim() === "") {
+      editor.value = generateCategoriesTextFromState();
+    }
+    setActiveTab("categories");
+  });
+
+  if (applyBtn && editor) {
+    applyBtn.addEventListener("click", () => {
+      const text = editor.value || "";
+      const categories = parseCategoriesText(text);
+      if (!categories.length) {
+        alert("No valid categories found. Please check your list.");
+        return;
+      }
+      state.categories = categories;
+      renderCategoryTree();
+      rerenderAll();
+      alert("Categories updated. Go back to Dashboard to see the tree.");
+    });
+  }
+
+  setActiveTab("dashboard");
+}
+
+// Turn current categories into dash-based text
+function generateCategoriesTextFromState() {
+  if (!state.categories.length) return "";
+
+  const childrenMap = {};
+  state.categories.forEach((c) => {
+    const parentKey = c.parentId || "root";
+    if (!childrenMap[parentKey]) childrenMap[parentKey] = [];
+    childrenMap[parentKey].push(c);
+  });
+
+  const roots = childrenMap["root"] || [];
+  const lines = [];
+
+  function dfs(cat, level) {
+    const prefix = level > 0 ? "-".repeat(level) : "";
+    lines.push(prefix + cat.name);
+    const children = childrenMap[cat.id] || [];
+    children.forEach((child) => dfs(child, level + 1));
+  }
+
+  roots.forEach((root) => dfs(root, 0));
+  return lines.join("\n");
+}
+
+// Parse dash-based text into category objects
+function parseCategoriesText(text) {
+  const lines = text
+    .split("\n")
+    .map((l) => l.replace(/\r/g, "").trimEnd())
+    .filter((l) => l.trim() !== "");
+
+  const categoriesWithMeta = [];
+  const lastByLevel = {};
+
+  lines.forEach((line) => {
+    const match = line.match(/^(-*)(.*)$/);
+    if (!match) return;
+    const dashes = match[1].length;
+    const rawName = match[2].trim();
+    if (!rawName) return;
+
+    const level = dashes; // 0 = top level, 1 = sub1, etc.
+    const parentMeta = level === 0 ? null : lastByLevel[level - 1] || null;
+    const path = parentMeta ? parentMeta.path + " > " + rawName : rawName;
+    const id = path;
+    const parentId = parentMeta ? parentMeta.id : null;
+    const type = inferCategoryType(rawName, parentMeta);
+
+    const cat = { id, name: rawName, parentId, type, path, level };
+    categoriesWithMeta.push(cat);
+    lastByLevel[level] = cat;
+  });
+
+  return categoriesWithMeta.map(({ path, level, ...rest }) => rest);
+}
+
+// Simple heuristic for Income vs Expense
+function inferCategoryType(name, parentMeta) {
+  const text = ((parentMeta?.name || "") + " " + name).toLowerCase();
+  if (
+    text.includes("income") ||
+    text.includes("salary") ||
+    text.includes("bonus") ||
+    text.includes("allowance") ||
+    text.includes("per diem")
+  ) {
+    return "Income";
+  }
+  return "Expense";
+}
+
+// ----- Period filter -----
 function setupPeriodFilter() {
   const select = document.getElementById("period-select");
   const customRange = document.getElementById("custom-range");
@@ -101,6 +229,7 @@ function setupPeriodFilter() {
   });
 }
 
+// ----- Category tree rendering -----
 function renderCategoryTree() {
   const container = document.getElementById("category-tree");
   if (!container) return;
@@ -109,10 +238,9 @@ function renderCategoryTree() {
   const byId = Object.fromEntries(state.categories.map((c) => [c.id, c]));
   const childrenMap = {};
   state.categories.forEach((c) => {
-    if (!childrenMap[c.parentId || "root"]) {
-      childrenMap[c.parentId || "root"] = [];
-    }
-    childrenMap[c.parentId || "root"].push(c);
+    const key = c.parentId || "root";
+    if (!childrenMap[key]) childrenMap[key] = [];
+    childrenMap[key].push(c);
   });
 
   const roots = childrenMap["root"] || [];
@@ -122,7 +250,8 @@ function renderCategoryTree() {
 }
 
 function renderCategoryNode(container, node, byId, childrenMap, path) {
-  const hasChildren = (childrenMap[node.id] || []).length > 0;
+  const children = childrenMap[node.id] || [];
+  const hasChildren = children.length > 0;
   const isLeaf = !hasChildren;
 
   const div = document.createElement("div");
@@ -150,12 +279,12 @@ function renderCategoryNode(container, node, byId, childrenMap, path) {
 
   container.appendChild(div);
 
-  const children = childrenMap[node.id] || [];
   children.forEach((child) => {
     renderCategoryNode(container, child, byId, childrenMap, `${path} › ${child.name}`);
   });
 }
 
+// ----- Transactions table -----
 function renderTransactionsTable() {
   const tbody = document.getElementById("transactions-body");
   if (!tbody) return;
@@ -193,6 +322,7 @@ function renderTransactionsTable() {
   });
 }
 
+// ----- Income statement -----
 function renderIncomeStatement() {
   const container = document.getElementById("income-statement");
   if (!container) return;
@@ -304,6 +434,7 @@ function formatAmount(amount) {
   return `${sign}${value}`;
 }
 
+// Drag & drop
 let draggedTransactionId = null;
 
 function handleTransactionDragStart(event) {
