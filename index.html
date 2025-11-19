@@ -30,51 +30,88 @@
       </div>
     </header>
 
-    <main class="layout">
-      <!-- Left: drag & drop categories -->
-      <section class="panel panel--left">
-        <h2>Categories</h2>
-        <div id="category-tree">
-          <!-- Populated by JS -->
-        </div>
-      </section>
+    <!-- Tabs -->
+    <nav class="tabs">
+      <button id="tab-btn-dashboard" class="tab-button active">Dashboard</button>
+      <button id="tab-btn-categories" class="tab-button">Categories</button>
+    </nav>
 
-      <!-- Center: transactions (drag these into categories) -->
-      <section class="panel panel--center">
-        <h2>Transactions</h2>
-        <table class="transactions-table">
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Description</th>
-              <th>Amount</th>
-              <th>Category</th>
-            </tr>
-          </thead>
-          <tbody id="transactions-body">
+    <!-- DASHBOARD TAB -->
+    <section id="tab-dashboard" class="tab-content active">
+      <main class="layout">
+        <!-- Left: categories tree -->
+        <section class="panel panel--left">
+          <h2>Categories</h2>
+          <div id="category-tree">
             <!-- Populated by JS -->
-          </tbody>
-        </table>
-      </section>
+          </div>
+        </section>
 
-      <!-- Right: income statement + Sankey placeholder -->
-      <section class="panel panel--right">
-        <h2>Summary</h2>
-        <div id="income-statement">
-          <!-- Populated by JS -->
-        </div>
+        <!-- Center: transactions -->
+        <section class="panel panel--center">
+          <h2>Transactions</h2>
+          <table class="transactions-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Description</th>
+                <th>Amount</th>
+                <th>Category</th>
+              </tr>
+            </thead>
+            <tbody id="transactions-body">
+              <!-- Populated by JS -->
+            </tbody>
+          </table>
+        </section>
 
-        <h3>Flow Diagram (Sankey)</h3>
-        <div id="sankey-container">
-          <!-- Chart library will render here later -->
-          <p class="placeholder">
-            Sankey diagram will appear here once data & charts are wired.
+        <!-- Right: summary + sankey placeholder -->
+        <section class="panel panel--right">
+          <h2>Summary</h2>
+          <div id="income-statement">
+            <!-- Populated by JS -->
+          </div>
+
+          <h3>Flow Diagram (Sankey)</h3>
+          <div id="sankey-container">
+            <p class="placeholder">
+              Sankey diagram will appear here once data &amp; charts are wired.
+            </p>
+          </div>
+        </section>
+      </main>
+    </section>
+
+    <!-- CATEGORIES TAB -->
+    <section id="tab-categories" class="tab-content">
+      <div class="layout-single">
+        <section class="panel">
+          <h2>Categories editor</h2>
+          <p class="text-muted">
+            Paste your category tree here, one per line. Use dashes for levels:
+            <br />
+            <code>Food &amp; Drinks</code><br />
+            <code>-Groceries</code><br />
+            <code>-Restaurants</code><br />
+            <code>--Lunch</code><br />
+            <code>--Dinner</code>
           </p>
-        </div>
-      </section>
-    </main>
+          <textarea id="categories-editor" class="categories-textarea" placeholder="Food &amp; Drinks
+-Groceries
+-Restaurants
+--Lunch
+--Dinner"></textarea>
+          <div class="editor-actions">
+            <button id="apply-categories" class="primary-button">
+              Update categories
+            </button>
+          </div>
+        </section>
+      </div>
+    </section>
   </div>
 
-  <script defer src="src/js/app.js"></script>
+  <!-- NOTE: your app.js really lives in src/src/js/app.js right now -->
+  <script defer src="src/src/js/app.js"></script>
 </body>
 </html>
