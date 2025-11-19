@@ -7,8 +7,8 @@ var state = {
   dateFilter: {
     mode: "6m", // default so sample data shows
     from: null,
-    to: null
-  }
+    to: null,
+  },
 };
 
 // ===== SAMPLE DATA =====
@@ -26,7 +26,7 @@ function loadSampleData() {
     { id: "Food & Drinks > Food Delivery", name: "Food Delivery", parentId: "Food & Drinks", type: "Expense" },
 
     { id: "Life & Entertainment", name: "Life & Entertainment", parentId: null, type: "Expense" },
-    { id: "Life & Entertainment > Gifts", name: "Gifts", parentId: "Life & Entertainment", type: "Expense" }
+    { id: "Life & Entertainment > Gifts", name: "Gifts", parentId: "Life & Entertainment", type: "Expense" },
   ];
 
   state.transactions = [
@@ -35,29 +35,29 @@ function loadSampleData() {
       date: "2025-10-01",
       description: "September Salary",
       amount: 16000,
-      categoryId: "Income > Base Salary"
+      categoryId: "Income > Base Salary",
     },
     {
       id: 2,
       date: "2025-10-03",
       description: "Dinner out",
       amount: -210,
-      categoryId: "Food & Drinks > Restaurants"
+      categoryId: "Food & Drinks > Restaurants",
     },
     {
       id: 3,
       date: "2025-10-04",
       description: "Food delivery",
       amount: -95,
-      categoryId: "Food & Drinks > Food Delivery"
+      categoryId: "Food & Drinks > Food Delivery",
     },
     {
       id: 4,
       date: "2025-09-29",
       description: "Gift for friend",
       amount: -150,
-      categoryId: "Life & Entertainment > Gifts"
-    }
+      categoryId: "Life & Entertainment > Gifts",
+    },
   ];
 }
 
@@ -66,52 +66,19 @@ function init() {
   console.log("Initialising app...");
   loadSampleData();
   setupPeriodFilter();
-  setupTabsAndCategoryEditor();
+  setupCategoryEditor();
   renderCategoryTree();
   renderTransactionsTable();
   renderIncomeStatement();
 }
 
-// ===== TABS & CATEGORY EDITOR =====
-function setupTabsAndCategoryEditor() {
-  var dashTab = document.getElementById("tab-dashboard");
-  var catTab = document.getElementById("tab-categories");
-  var btnDash = document.getElementById("tab-btn-dashboard");
-  var btnCat = document.getElementById("tab-btn-categories");
+// ===== CATEGORY EDITOR (NO TAB SWITCHING HERE) =====
+function setupCategoryEditor() {
   var editor = document.getElementById("categories-editor");
   var applyBtn = document.getElementById("apply-categories");
 
-  if (!dashTab || !catTab || !btnDash || !btnCat) {
-    console.log("Tabs elements not found");
-    return;
-  }
-
-  function setActiveTab(tab) {
-    if (tab === "dashboard") {
-      dashTab.style.display = "block";
-      catTab.style.display = "none";
-      btnDash.classList.add("active");
-      btnCat.classList.remove("active");
-    } else {
-      dashTab.style.display = "none";
-      catTab.style.display = "block";
-      btnDash.classList.remove("active");
-      btnCat.classList.add("active");
-    }
-  }
-
-  btnDash.addEventListener("click", function () {
-    console.log("Dashboard tab clicked");
-    setActiveTab("dashboard");
-  });
-
-  btnCat.addEventListener("click", function () {
-    console.log("Categories tab clicked");
-    if (editor && editor.value.replace(/\s/g, "") === "") {
-      editor.value = generateCategoriesTextFromState();
-    }
-    setActiveTab("categories");
-  });
+  // Optional: when user switches to Categories tab for the first time,
+  // they can manually paste. We won't auto-fill to keep it simple.
 
   if (applyBtn && editor) {
     applyBtn.addEventListener("click", function () {
@@ -127,43 +94,12 @@ function setupTabsAndCategoryEditor() {
       alert("Categories updated. Go back to Dashboard to see the tree.");
     });
   }
-
-  // start with dashboard visible
-  setActiveTab("dashboard");
 }
 
-// turn current categories into dash-based text
-function generateCategoriesTextFromState() {
-  if (!state.categories.length) return "";
-
-  var childrenMap = {};
-  state.categories.forEach(function (c) {
-    var key = c.parentId || "root";
-    if (!childrenMap[key]) childrenMap[key] = [];
-    childrenMap[key].push(c);
-  });
-
-  var roots = childrenMap["root"] || [];
-  var lines = [];
-
-  function dfs(cat, level) {
-    var prefix = level > 0 ? Array(level + 1).join("-") : "";
-    lines.push(prefix + cat.name);
-    var children = childrenMap[cat.id] || [];
-    children.forEach(function (child) {
-      dfs(child, level + 1);
-    });
-  }
-
-  roots.forEach(function (root) {
-    dfs(root, 0);
-  });
-
-  return lines.join("\n");
-}
-
-// parse dash-based text into category objects
+// Convert dash-based text -> category objects
 function parseCategoriesText(text) {
+  if (!text.trim()) return [];
+
   var rawLines = text.split("\n");
   var lines = [];
   rawLines.forEach(function (l) {
@@ -182,7 +118,7 @@ function parseCategoriesText(text) {
     var rawName = match[2].trim();
     if (!rawName) return;
 
-    var level = dashes;
+    var level = dashes; // 0 = top level
     var parentMeta = level === 0 ? null : lastByLevel[level - 1] || null;
     var path = parentMeta ? parentMeta.path + " > " + rawName : rawName;
     var id = path;
@@ -195,7 +131,7 @@ function parseCategoriesText(text) {
       parentId: parentId,
       type: type,
       path: path,
-      level: level
+      level: level,
     };
 
     categoriesWithMeta.push(cat);
@@ -208,14 +144,14 @@ function parseCategoriesText(text) {
       id: c.id,
       name: c.name,
       parentId: c.parentId,
-      type: c.type
+      type: c.type,
     });
   });
 
   return result;
 }
 
-// simple heuristic for Income vs Expense
+// Simple heuristic for Income vs Expense
 function inferCategoryType(name, parentMeta) {
   var parentName = parentMeta ? parentMeta.name : "";
   var text = (parentName + " " + name).toLowerCase();
@@ -320,7 +256,12 @@ function renderCategoryNode(container, node, childrenMap, path) {
   container.appendChild(div);
 
   children.forEach(function (child) {
-    renderCategoryNode(container, child, childrenMap, path + " › " + child.name);
+    renderCategoryNode(
+      container,
+      child,
+      childrenMap,
+      path + " › " + child.name
+    );
   });
 }
 
@@ -373,8 +314,11 @@ function renderIncomeStatement() {
   var groups = { Income: {}, Expense: {} };
 
   filtered.forEach(function (tx) {
-    var cat = state.categories.find(function (c) { return c.id === tx.categoryId; });
-    var type = cat && cat.type ? cat.type : (tx.amount >= 0 ? "Income" : "Expense");
+    var cat = state.categories.find(function (c) {
+      return c.id === tx.categoryId;
+    });
+    var type =
+      cat && cat.type ? cat.type : tx.amount >= 0 ? "Income" : "Expense";
     var group = type === "Income" ? groups.Income : groups.Expense;
     var key = getCategoryName(tx.categoryId);
     if (!group[key]) group[key] = 0;
@@ -386,7 +330,9 @@ function renderIncomeStatement() {
   var net = incomeTotal + expenseTotal;
 
   container.appendChild(buildIncomeGroup("Income", groups.Income, incomeTotal));
-  container.appendChild(buildIncomeGroup("Expenses", groups.Expense, expenseTotal));
+  container.appendChild(
+    buildIncomeGroup("Expenses", groups.Expense, expenseTotal)
+  );
 
   var netDiv = document.createElement("div");
   netDiv.className = "income-group";
@@ -466,7 +412,9 @@ function getFilteredTransactions() {
 }
 
 function getCategoryName(categoryId) {
-  var cat = state.categories.find(function (c) { return c.id === categoryId; });
+  var cat = state.categories.find(function (c) {
+    return c.id === categoryId;
+  });
   return cat ? cat.name : "Uncategorised";
 }
 
@@ -490,7 +438,10 @@ var draggedTransactionId = null;
 function handleTransactionDragStart(event) {
   var tr = event.currentTarget;
   tr.classList.add("dragging");
-  draggedTransactionId = parseInt(tr.getAttribute("data-transaction-id"), 10);
+  draggedTransactionId = parseInt(
+    tr.getAttribute("data-transaction-id"),
+    10
+  );
   event.dataTransfer.effectAllowed = "move";
 }
 
@@ -518,7 +469,9 @@ function handleCategoryDrop(event) {
 
   if (draggedTransactionId == null) return;
 
-  var tx = state.transactions.find(function (t) { return t.id === draggedTransactionId; });
+  var tx = state.transactions.find(function (t) {
+    return t.id === draggedTransactionId;
+  });
   if (!tx) return;
 
   tx.categoryId = categoryId;
@@ -528,7 +481,6 @@ function handleCategoryDrop(event) {
 function rerenderAll() {
   renderTransactionsTable();
   renderIncomeStatement();
-  // later: rerender Sankey here
 }
 
 document.addEventListener("DOMContentLoaded", init);
