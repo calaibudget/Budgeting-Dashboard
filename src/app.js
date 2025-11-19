@@ -1,15 +1,17 @@
 console.log("App script loaded");
 
-// ===== STATE =====
 var state = {
   transactions: [],
   categories: [],
   dateFilter: {
-    mode: "6m", // default so sample data shows
+    mode: "6m",
     from: null,
-    to: null,
-  },
+    to: null
+  }
 };
+
+// which parents are collapsed in the tree
+var collapsedCategoryIds = new Set();
 
 // ===== SAMPLE DATA =====
 function loadSampleData() {
@@ -26,7 +28,7 @@ function loadSampleData() {
     { id: "Food & Drinks > Food Delivery", name: "Food Delivery", parentId: "Food & Drinks", type: "Expense" },
 
     { id: "Life & Entertainment", name: "Life & Entertainment", parentId: null, type: "Expense" },
-    { id: "Life & Entertainment > Gifts", name: "Gifts", parentId: "Life & Entertainment", type: "Expense" },
+    { id: "Life & Entertainment > Gifts", name: "Gifts", parentId: "Life & Entertainment", type: "Expense" }
   ];
 
   state.transactions = [
@@ -35,29 +37,29 @@ function loadSampleData() {
       date: "2025-10-01",
       description: "September Salary",
       amount: 16000,
-      categoryId: "Income > Base Salary",
+      categoryId: "Income > Base Salary"
     },
     {
       id: 2,
       date: "2025-10-03",
       description: "Dinner out",
       amount: -210,
-      categoryId: "Food & Drinks > Restaurants",
+      categoryId: "Food & Drinks > Restaurants"
     },
     {
       id: 3,
       date: "2025-10-04",
       description: "Food delivery",
       amount: -95,
-      categoryId: "Food & Drinks > Food Delivery",
+      categoryId: "Food & Drinks > Food Delivery"
     },
     {
       id: 4,
       date: "2025-09-29",
       description: "Gift for friend",
       amount: -150,
-      categoryId: "Life & Entertainment > Gifts",
-    },
+      categoryId: "Life & Entertainment > Gifts"
+    }
   ];
 }
 
@@ -66,125 +68,14 @@ function init() {
   console.log("Initialising app...");
   loadSampleData();
   setupPeriodFilter();
-  setupCategoryEditor();
+  setupCategoryEditorModal();
   setupTabHeaderVisibility();
-  renderCategoryTree();
   renderTransactionsTable();
   renderIncomeStatement();
+  renderAllCategoryTrees();
 }
 
-// ===== CATEGORY EDITOR =====
-function setupCategoryEditor() {
-  var editor = document.getElementById("categories-editor");
-  var applyBtn = document.getElementById("apply-categories");
-
-  if (!applyBtn || !editor) {
-    console.log("Category editor elements not found");
-    return;
-  }
-
-  applyBtn.addEventListener("click", function () {
-    var text = editor.value || "";
-    console.log("Update categories clicked. Raw text:", text);
-
-    var categories = parseCategoriesText(text);
-    console.log("Parsed categories:", categories);
-
-    if (!categories.length) {
-      alert("No valid categories found. Please check your list.");
-      return;
-    }
-
-    state.categories = categories;
-    renderCategoryTree();
-    rerenderAll();
-
-    alert(
-      "Categories updated: " +
-        categories.length +
-        ". Switch to the Dashboard tab to see the tree on the left."
-    );
-  });
-}
-
-// Convert dash-based text -> category objects
-function parseCategoriesText(text) {
-  if (!text || !text.trim()) {
-    console.log("parseCategoriesText: empty text");
-    return [];
-  }
-
-  var rawLines = text.split("\n");
-  var lines = [];
-  rawLines.forEach(function (l) {
-    var line = l.replace(/\r/g, "");
-    if (line.trim() !== "") lines.push(line);
-  });
-
-  var categoriesWithMeta = [];
-  var lastByLevel = {};
-
-  lines.forEach(function (line) {
-    var trimmedLine = line.replace(/^\s+/, "");
-    var match = trimmedLine.match(/^(-*)(.*)$/);
-    if (!match) return;
-
-    var dashes = match[1].length;
-    var rawName = match[2].trim();
-    if (!rawName) return;
-
-    var level = dashes; // 0 = top level
-    var parentMeta = level === 0 ? null : lastByLevel[level - 1] || null;
-    var path = parentMeta ? parentMeta.path + " > " + rawName : rawName;
-    var id = path;
-    var parentId = parentMeta ? parentMeta.id : null;
-    var type = inferCategoryType(rawName, parentMeta);
-
-    var cat = {
-      id: id,
-      name: rawName,
-      parentId: parentId,
-      type: type,
-      path: path,
-      level: level,
-    };
-
-    categoriesWithMeta.push(cat);
-    lastByLevel[level] = cat;
-  });
-
-  console.log("parseCategoriesText: built", categoriesWithMeta.length, "nodes");
-
-  var result = [];
-  categoriesWithMeta.forEach(function (c) {
-    result.push({
-      id: c.id,
-      name: c.name,
-      parentId: c.parentId,
-      type: c.type,
-    });
-  });
-
-  return result;
-}
-
-// Simple heuristic for Income vs Expense
-function inferCategoryType(name, parentMeta) {
-  var parentName = parentMeta ? parentMeta.name : "";
-  var text = (parentName + " " + name).toLowerCase();
-  if (
-    text.indexOf("income") >= 0 ||
-    text.indexOf("salary") >= 0 ||
-    text.indexOf("bonus") >= 0 ||
-    text.indexOf("allowance") >= 0 ||
-    text.indexOf("per diem") >= 0
-  ) {
-    return "Income";
-  }
-  return "Expense";
-}
-
-// ===== PERIOD FILTER =====
+// ===== PERIOD SELECTOR =====
 function setupPeriodFilter() {
   var select = document.getElementById("period-select");
   var customRange = document.getElementById("custom-range");
@@ -223,7 +114,7 @@ function setupPeriodFilter() {
   select.value = state.dateFilter.mode;
 }
 
-// ===== HIDE PERIOD SELECTOR ON CATEGORIES TAB =====
+// hide period selector on Categories tab
 function setupTabHeaderVisibility() {
   var dashRadio = document.getElementById("tab-radio-dashboard");
   var catRadio = document.getElementById("tab-radio-categories");
@@ -244,16 +135,185 @@ function setupTabHeaderVisibility() {
 
   dashRadio.addEventListener("change", updateFiltersVisibility);
   catRadio.addEventListener("change", updateFiltersVisibility);
-
-  // initial state
   updateFiltersVisibility();
 }
 
-// ===== CATEGORY TREE RENDERING =====
-function renderCategoryTree() {
-  var container = document.getElementById("category-tree");
+// ===== CATEGORY EDITOR MODAL =====
+function setupCategoryEditorModal() {
+  var openBtn = document.getElementById("open-category-editor");
+  var modal = document.getElementById("category-editor-modal");
+  var textarea = document.getElementById("categories-editor-modal");
+  var cancelBtn = document.getElementById("cancel-categories");
+  var applyBtn = document.getElementById("apply-categories");
+  var backdrop = modal ? modal.querySelector(".modal-backdrop") : null;
+
+  if (!openBtn || !modal || !textarea || !cancelBtn || !applyBtn) {
+    console.log("Category editor modal elements not found");
+    return;
+  }
+
+  function openModal() {
+    textarea.value = generateCategoriesTextFromState();
+    modal.classList.remove("hidden");
+  }
+
+  function closeModal() {
+    modal.classList.add("hidden");
+  }
+
+  openBtn.addEventListener("click", openModal);
+  cancelBtn.addEventListener("click", closeModal);
+  if (backdrop) {
+    backdrop.addEventListener("click", closeModal);
+  }
+
+  applyBtn.addEventListener("click", function () {
+    var text = textarea.value || "";
+    console.log("Apply categories clicked. Raw text:", text);
+
+    var categories = parseCategoriesText(text);
+    console.log("Parsed categories:", categories);
+
+    if (!categories.length) {
+      alert("No valid categories found. Please check your list.");
+      return;
+    }
+
+    state.categories = categories;
+    collapsedCategoryIds.clear();
+    renderAllCategoryTrees();
+    rerenderAll();
+
+    alert(
+      "Categories updated: " +
+        categories.length +
+        ". Check the tree on the Categories tab and the summary on the Dashboard."
+    );
+    closeModal();
+  });
+}
+
+// current categories -> dashed text (ordered, with dashes)
+function generateCategoriesTextFromState() {
+  if (!state.categories.length) return "";
+
+  var childrenMap = {};
+  state.categories.forEach(function (c) {
+    var key = c.parentId || "root";
+    if (!childrenMap[key]) childrenMap[key] = [];
+    childrenMap[key].push(c);
+  });
+
+  var lines = [];
+  function dfs(cat, level) {
+    var prefix = level > 0 ? Array(level + 1).join("-") : "";
+    lines.push(prefix + cat.name);
+    var children = childrenMap[cat.id] || [];
+    children.forEach(function (child) {
+      dfs(child, level + 1);
+    });
+  }
+
+  var roots = childrenMap["root"] || [];
+  roots.forEach(function (root) {
+    dfs(root, 0);
+  });
+
+  return lines.join("\n");
+}
+
+// dashed text -> categories array, keeping order & parent relationships
+function parseCategoriesText(text) {
+  if (!text || !text.trim()) {
+    console.log("parseCategoriesText: empty text");
+    return [];
+  }
+
+  var rawLines = text.split("\n");
+  var lines = [];
+  rawLines.forEach(function (l) {
+    var line = l.replace(/\r/g, "");
+    if (line.trim() !== "") lines.push(line);
+  });
+
+  var categoriesWithMeta = [];
+  var lastByLevel = {};
+
+  lines.forEach(function (line) {
+    var trimmedLine = line.replace(/^\s+/, "");
+    var match = trimmedLine.match(/^(-*)(.*)$/);
+    if (!match) return;
+
+    var dashes = match[1].length;
+    var rawName = match[2].trim();
+    if (!rawName) return;
+
+    var level = dashes;
+    var parentMeta = level === 0 ? null : lastByLevel[level - 1] || null;
+    var path = parentMeta ? parentMeta.path + " > " + rawName : rawName;
+    var id = path;
+    var parentId = parentMeta ? parentMeta.id : null;
+    var type = inferCategoryType(rawName, parentMeta);
+
+    var cat = {
+      id: id,
+      name: rawName,
+      parentId: parentId,
+      type: type,
+      path: path,
+      level: level
+    };
+
+    categoriesWithMeta.push(cat);
+    lastByLevel[level] = cat;
+  });
+
+  console.log("parseCategoriesText: built", categoriesWithMeta.length, "nodes");
+
+  // we keep level so we can use it if needed
+  var result = [];
+  categoriesWithMeta.forEach(function (c) {
+    result.push({
+      id: c.id,
+      name: c.name,
+      parentId: c.parentId,
+      type: c.type,
+      level: c.level
+    });
+  });
+
+  return result;
+}
+
+function inferCategoryType(name, parentMeta) {
+  var parentName = parentMeta ? parentMeta.name : "";
+  var text = (parentName + " " + name).toLowerCase();
+  if (
+    text.indexOf("income") >= 0 ||
+    text.indexOf("salary") >= 0 ||
+    text.indexOf("bonus") >= 0 ||
+    text.indexOf("allowance") >= 0 ||
+    text.indexOf("per diem") >= 0
+  ) {
+    return "Income";
+  }
+  return "Expense";
+}
+
+// ===== CATEGORY TREE RENDERING (Categories tab only) =====
+function renderAllCategoryTrees() {
+  renderCategoryTreeInto("category-tree-tab");
+}
+
+function renderCategoryTreeInto(containerId) {
+  var container = document.getElementById(containerId);
   if (!container) return;
   container.innerHTML = "";
+
+  if (!state.categories.length) {
+    container.textContent = "No categories defined yet.";
+    return;
+  }
 
   var childrenMap = {};
   state.categories.forEach(function (c) {
@@ -263,52 +323,66 @@ function renderCategoryTree() {
   });
 
   var roots = childrenMap["root"] || [];
+
+  function renderNode(cat, depth) {
+    var children = childrenMap[cat.id] || [];
+    var hasChildren = children.length > 0;
+    var isCollapsed = collapsedCategoryIds.has(cat.id);
+
+    var row = document.createElement("div");
+    row.className = "category-row level-" + depth;
+    row.style.marginLeft = depth > 0 ? depth * 18 + "px" : "0px";
+
+    var toggle = document.createElement("span");
+    toggle.className = "category-row__toggle";
+    if (hasChildren) {
+      toggle.textContent = isCollapsed ? "▸" : "▾";
+      toggle.addEventListener("click", function (e) {
+        e.stopPropagation();
+        if (isCollapsed) {
+          collapsedCategoryIds.delete(cat.id);
+        } else {
+          collapsedCategoryIds.add(cat.id);
+        }
+        renderAllCategoryTrees();
+      });
+    } else {
+      toggle.textContent = "";
+      toggle.classList.add("empty");
+    }
+
+    var label = document.createElement("span");
+    label.className = "category-row__label";
+    label.textContent = cat.name;
+
+    var path = document.createElement("span");
+    path.className = "category-row__path";
+    if (depth === 0) {
+      path.textContent = cat.type || "";
+    } else {
+      // nothing or could show full path
+      path.textContent = "";
+    }
+
+    row.appendChild(toggle);
+    row.appendChild(label);
+    row.appendChild(path);
+
+    container.appendChild(row);
+
+    if (!isCollapsed) {
+      children.forEach(function (child) {
+        renderNode(child, depth + 1);
+      });
+    }
+  }
+
   roots.forEach(function (root) {
-    renderCategoryNode(container, root, childrenMap, root.name);
+    renderNode(root, 0);
   });
 }
 
-function renderCategoryNode(container, node, childrenMap, path) {
-  var children = childrenMap[node.id] || [];
-  var hasChildren = children.length > 0;
-  var isLeaf = !hasChildren;
-
-  var div = document.createElement("div");
-  div.className = "category-node" + (isLeaf ? " leaf" : "");
-  div.setAttribute("data-category-id", node.id);
-
-  if (isLeaf) {
-    div.addEventListener("dragover", handleCategoryDragOver);
-    div.addEventListener("dragleave", handleCategoryDragLeave);
-    div.addEventListener("drop", handleCategoryDrop);
-  }
-
-  var label = document.createElement("div");
-  label.className = "category-node__label";
-  label.textContent = node.name;
-
-  var pathEl = document.createElement("div");
-  pathEl.className = "category-node__path";
-  pathEl.textContent = path;
-
-  div.appendChild(label);
-  if (path !== node.name) {
-    div.appendChild(pathEl);
-  }
-
-  container.appendChild(div);
-
-  children.forEach(function (child) {
-    renderCategoryNode(
-      container,
-      child,
-      childrenMap,
-      path + " › " + child.name
-    );
-  });
-}
-
-// ===== TRANSACTIONS TABLE =====
+// ===== TRANSACTIONS / INCOME STATEMENT =====
 function renderTransactionsTable() {
   var tbody = document.getElementById("transactions-body");
   if (!tbody) return;
@@ -318,12 +392,6 @@ function renderTransactionsTable() {
 
   filtered.forEach(function (tx) {
     var tr = document.createElement("tr");
-    tr.classList.add("draggable");
-    tr.setAttribute("draggable", "true");
-    tr.setAttribute("data-transaction-id", String(tx.id));
-
-    tr.addEventListener("dragstart", handleTransactionDragStart);
-    tr.addEventListener("dragend", handleTransactionDragEnd);
 
     var dateTd = document.createElement("td");
     dateTd.textContent = tx.date;
@@ -346,14 +414,12 @@ function renderTransactionsTable() {
   });
 }
 
-// ===== INCOME STATEMENT =====
 function renderIncomeStatement() {
   var container = document.getElementById("income-statement");
   if (!container) return;
   container.innerHTML = "";
 
   var filtered = getFilteredTransactions();
-
   var groups = { Income: {}, Expense: {} };
 
   filtered.forEach(function (tx) {
@@ -473,52 +539,6 @@ function sumValues(obj) {
     if (obj.hasOwnProperty(k)) sum += obj[k];
   }
   return sum;
-}
-
-// Drag & drop
-var draggedTransactionId = null;
-
-function handleTransactionDragStart(event) {
-  var tr = event.currentTarget;
-  tr.classList.add("dragging");
-  draggedTransactionId = parseInt(
-    tr.getAttribute("data-transaction-id"),
-    10
-  );
-  event.dataTransfer.effectAllowed = "move";
-}
-
-function handleTransactionDragEnd(event) {
-  var tr = event.currentTarget;
-  tr.classList.remove("dragging");
-  draggedTransactionId = null;
-}
-
-function handleCategoryDragOver(event) {
-  event.preventDefault();
-  event.dataTransfer.dropEffect = "move";
-  event.currentTarget.classList.add("drop-hover");
-}
-
-function handleCategoryDragLeave(event) {
-  event.currentTarget.classList.remove("drop-hover");
-}
-
-function handleCategoryDrop(event) {
-  event.preventDefault();
-  var div = event.currentTarget;
-  var categoryId = div.getAttribute("data-category-id");
-  div.classList.remove("drop-hover");
-
-  if (draggedTransactionId == null) return;
-
-  var tx = state.transactions.find(function (t) {
-    return t.id === draggedTransactionId;
-  });
-  if (!tx) return;
-
-  tx.categoryId = categoryId;
-  rerenderAll();
 }
 
 function rerenderAll() {
