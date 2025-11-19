@@ -52,7 +52,17 @@ body {
   display: none;
 }
 
-/* Tabs */
+/* Tabs with radios */
+
+.tabs-wrapper {
+  display: flex;
+  flex-direction: column;
+}
+
+/* hide radios */
+.tab-radio {
+  display: none;
+}
 
 .tabs {
   display: flex;
@@ -71,9 +81,25 @@ body {
   color: #e5e7eb;
 }
 
-.tab-button.active {
+/* Active tab styling driven purely by :checked radios */
+#tab-radio-dashboard:checked ~ .tabs label[for="tab-radio-dashboard"],
+#tab-radio-categories:checked ~ .tabs label[for="tab-radio-categories"] {
   background: #111827;
   border-color: #38bdf8;
+}
+
+/* Panels */
+
+.tab-panel {
+  display: none;
+}
+
+#tab-radio-dashboard:checked ~ .tab-panel-dashboard {
+  display: block;
+}
+
+#tab-radio-categories:checked ~ .tab-panel-categories {
+  display: block;
 }
 
 /* Layout & panels */
