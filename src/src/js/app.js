@@ -1,3 +1,5 @@
+console.log("App script loaded");
+
 // Basic in-memory state
 const state = {
   transactions: [],
@@ -11,6 +13,7 @@ const state = {
 
 // ----- Sample data for now -----
 function loadSampleData() {
+  console.log("Loading sample data...");
   state.categories = [
     { id: "income", name: "Income", parentId: null, type: "Income" },
     { id: "salary", name: "Base Salary", parentId: "income", type: "Income" },
@@ -58,6 +61,7 @@ function loadSampleData() {
 
 // ----- Rendering -----
 function init() {
+  console.log("Initialising app...");
   loadSampleData();
   setupPeriodFilter();
   renderCategoryTree();
