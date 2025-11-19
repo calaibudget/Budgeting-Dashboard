@@ -67,10 +67,10 @@ function init() {
   loadSampleData();
   setupPeriodFilter();
   setupCategoryEditor();
+  setupTabHeaderVisibility();
   renderCategoryTree();
   renderTransactionsTable();
   renderIncomeStatement();
-}
 
 // ===== CATEGORY EDITOR (NO TAB SWITCHING HERE) =====
 function setupCategoryEditor() {
@@ -495,6 +495,30 @@ function handleCategoryDrop(event) {
 function rerenderAll() {
   renderTransactionsTable();
   renderIncomeStatement();
+}
+function setupTabHeaderVisibility() {
+  var dashRadio = document.getElementById("tab-radio-dashboard");
+  var catRadio = document.getElementById("tab-radio-categories");
+  var filters = document.querySelector(".top-bar__filters");
+
+  if (!dashRadio || !catRadio || !filters) {
+    console.log("Tab header visibility: elements not found");
+    return;
+  }
+
+  function update() {
+    if (catRadio.checked) {
+      filters.style.display = "none";
+    } else {
+      filters.style.display = "flex";
+    }
+  }
+
+  dashRadio.addEventListener("change", update);
+  catRadio.addEventListener("change", update);
+
+  // initial state
+  update();
 }
 
 document.addEventListener("DOMContentLoaded", init);
