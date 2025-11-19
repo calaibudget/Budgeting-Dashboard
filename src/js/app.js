@@ -77,32 +77,42 @@ function setupCategoryEditor() {
   var editor = document.getElementById("categories-editor");
   var applyBtn = document.getElementById("apply-categories");
 
-  // Optional: when user switches to Categories tab for the first time,
-  // they can manually paste. We won't auto-fill to keep it simple.
-
-  if (applyBtn && editor) {
-    applyBtn.addEventListener("click", function () {
-      var text = editor.value || "";
-      var categories = parseCategoriesText(text);
-      if (!categories.length) {
-        alert("No valid categories found. Please check your list.");
-        return;
-      }
-      state.categories = categories;
-      renderCategoryTree();
-      rerenderAll();
-      alert("Categories updated. Go back to Dashboard to see the tree.");
-    });
+  if (!applyBtn || !editor) {
+    console.log("Category editor elements not found");
+    return;
   }
+
+  applyBtn.addEventListener("click", function () {
+    var text = editor.value || "";
+    console.log("Update categories clicked. Raw text:", text);
+
+    var categories = parseCategoriesText(text);
+    console.log("Parsed categories:", categories);
+
+    if (!categories.length) {
+      alert("No valid categories found. Please check your list.");
+      return;
+    }
+
+    state.categories = categories;
+    renderCategoryTree();
+    rerenderAll();
+
+    alert("Categories updated: " + categories.length + ". Open the Dashboard tab to see the new tree.");
+  });
 }
 
 // Convert dash-based text -> category objects
 function parseCategoriesText(text) {
-  if (!text.trim()) return [];
+  if (!text || !text.trim()) {
+    console.log("parseCategoriesText: empty text");
+    return [];
+  }
 
   var rawLines = text.split("\n");
   var lines = [];
   rawLines.forEach(function (l) {
+    // remove CR, then trim right only (keep left spaces in case)
     var line = l.replace(/\r/g, "");
     if (line.trim() !== "") lines.push(line);
   });
@@ -111,7 +121,9 @@ function parseCategoriesText(text) {
   var lastByLevel = {};
 
   lines.forEach(function (line) {
-    var match = line.match(/^(-*)(.*)$/);
+    // also trim leading spaces before counting dashes
+    var trimmedLine = line.replace(/^\s+/, "");
+    var match = trimmedLine.match(/^(-*)(.*)$/);
     if (!match) return;
 
     var dashes = match[1].length;
@@ -137,6 +149,8 @@ function parseCategoriesText(text) {
     categoriesWithMeta.push(cat);
     lastByLevel[level] = cat;
   });
+
+  console.log("parseCategoriesText: built", categoriesWithMeta.length, "nodes");
 
   var result = [];
   categoriesWithMeta.forEach(function (c) {
