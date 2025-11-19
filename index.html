@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Budget Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="src/css/styles.css" />
+</head>
+<body>
+  <div id="app">
+    <header class="top-bar">
+      <h1>Budget Dashboard</h1>
+      <div class="top-bar__filters">
+        <label>
+          Period:
+          <select id="period-select">
+            <option value="1m">Last 1 month</option>
+            <option value="3m">Last 3 months</option>
+            <option value="6m">Last 6 months</option>
+            <option value="ytd">YTD</option>
+            <option value="custom">Custom</option>
+          </select>
+        </label>
+        <label id="custom-range" class="hidden">
+          From:
+          <input type="date" id="date-from" />
+          To:
+          <input type="date" id="date-to" />
+        </label>
+      </div>
+    </header>
+
+    <main class="layout">
+      <!-- Left: drag & drop categories -->
+      <section class="panel panel--left">
+        <h2>Categories</h2>
+        <div id="category-tree">
+          <!-- Populated by JS -->
+        </div>
+      </section>
+
+      <!-- Center: transactions (drag these into categories) -->
+      <section class="panel panel--center">
+        <h2>Transactions</h2>
+        <table class="transactions-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Description</th>
+              <th>Amount</th>
+              <th>Category</th>
+            </tr>
+          </thead>
+          <tbody id="transactions-body">
+            <!-- Populated by JS -->
+          </tbody>
+        </table>
+      </section>
+
+      <!-- Right: income statement + Sankey placeholder -->
+      <section class="panel panel--right">
+        <h2>Summary</h2>
+        <div id="income-statement">
+          <!-- Populated by JS -->
+        </div>
+
+        <h3>Flow Diagram (Sankey)</h3>
+        <div id="sankey-container">
+          <!-- Chart library will render here later -->
+          <p class="placeholder">
+            Sankey diagram will appear here once data & charts are wired.
+          </p>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script defer src="src/js/app.js"></script>
+</body>
+</html>
