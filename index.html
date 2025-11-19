@@ -30,9 +30,8 @@
       </div>
     </header>
 
-    <!-- Tabs wrapper with RADIO BUTTONS (no JS needed to switch) -->
     <div class="tabs-wrapper">
-      <!-- hidden radios control which panel is visible -->
+      <!-- radio buttons control which tab is visible (no JS needed) -->
       <input
         type="radio"
         id="tab-radio-dashboard"
@@ -47,23 +46,16 @@
         class="tab-radio"
       />
 
-      <!-- Tab buttons -->
       <nav class="tabs">
         <label for="tab-radio-dashboard" class="tab-button">Dashboard</label>
         <label for="tab-radio-categories" class="tab-button">Categories</label>
       </nav>
 
-      <!-- DASHBOARD PANEL -->
+      <!-- DASHBOARD (no categories here) -->
       <section class="tab-panel tab-panel-dashboard">
-        <main class="layout">
-          <!-- Left: categories tree -->
-          <section class="panel panel--left">
-            <h2>Categories</h2>
-            <div id="category-tree"></div>
-          </section>
-
-          <!-- Center: transactions -->
-          <section class="panel panel--center">
+        <main class="layout layout-dashboard">
+          <!-- Transactions -->
+          <section class="panel">
             <h2>Transactions</h2>
             <table class="transactions-table">
               <thead>
@@ -78,8 +70,8 @@
             </table>
           </section>
 
-          <!-- Right: summary + sankey placeholder -->
-          <section class="panel panel--right">
+          <!-- Summary -->
+          <section class="panel">
             <h2>Summary</h2>
             <div id="income-statement"></div>
 
@@ -93,41 +85,69 @@
         </main>
       </section>
 
-      <!-- CATEGORIES PANEL -->
+      <!-- CATEGORIES TAB (tree + edit button) -->
       <section class="tab-panel tab-panel-categories">
-        <div class="layout-single">
+        <main class="layout layout-categories">
+          <!-- Left: category tree -->
           <section class="panel">
-            <h2>Categories editor</h2>
+            <h2>Categories</h2>
             <p class="text-muted">
-              Paste your category tree here, one per line. Use dashes for levels:
-              <br />
-              <code>Food &amp; Drinks</code><br />
-              <code>-Groceries</code><br />
-              <code>-Restaurants</code><br />
-              <code>--Lunch</code><br />
-              <code>--Dinner</code>
+              This is your current category tree. Use indentation to see parent → sub → sub-sub.
+              Click the arrows to collapse or expand groups.
             </p>
-            <textarea
-              id="categories-editor"
-              class="categories-textarea"
-              placeholder="Food &amp; Drinks
--Groceries
--Restaurants
---Lunch
---Dinner"
-            ></textarea>
-            <div class="editor-actions">
-              <button id="apply-categories" class="primary-button">
-                Update categories
-              </button>
-            </div>
+            <div id="category-tree-tab"></div>
           </section>
-        </div>
+
+          <!-- Right: edit trigger -->
+          <section class="panel">
+            <h2>Edit categories</h2>
+            <p class="text-muted">
+              Open the editor to paste or adjust your category list using dash-based levels.
+              When you apply, this tree and the Dashboard summary will update.
+            </p>
+            <button id="open-category-editor" class="primary-button">
+              Open categories editor
+            </button>
+          </section>
+        </main>
       </section>
     </div>
   </div>
 
-  <!-- NOTE: your JS file is actually here in the repo -->
- <script defer src="src/app.js"></script>
+  <!-- POPUP EDITOR MODAL -->
+  <div id="category-editor-modal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-dialog">
+      <h2>Edit categories</h2>
+      <p class="text-muted">
+        Paste your category tree here, one category per line. Use dashes for levels:
+        <br />
+        <code>Food &amp; Drinks</code><br />
+        <code>-Groceries</code><br />
+        <code>-Restaurants</code><br />
+        <code>--Lunch</code><br />
+        <code>--Dinner</code>
+      </p>
+      <textarea
+        id="categories-editor-modal"
+        class="categories-textarea"
+        placeholder="Food &amp; Drinks
+-Groceries
+-Restaurants
+--Lunch
+--Dinner"
+      ></textarea>
+      <div class="editor-actions">
+        <button id="cancel-categories" class="secondary-button">
+          Cancel
+        </button>
+        <button id="apply-categories" class="primary-button">
+          Apply changes
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script defer src="src/app.js"></script>
 </body>
 </html>
