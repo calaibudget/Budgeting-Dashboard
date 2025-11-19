@@ -41,6 +41,12 @@
       />
       <input
         type="radio"
+        id="tab-radio-transactions"
+        name="main-tab"
+        class="tab-radio"
+      />
+      <input
+        type="radio"
         id="tab-radio-categories"
         name="main-tab"
         class="tab-radio"
@@ -48,29 +54,13 @@
 
       <nav class="tabs">
         <label for="tab-radio-dashboard" class="tab-button">Dashboard</label>
+        <label for="tab-radio-transactions" class="tab-button">Transactions</label>
         <label for="tab-radio-categories" class="tab-button">Categories</label>
       </nav>
 
-      <!-- DASHBOARD (no categories here) -->
+      <!-- DASHBOARD: summary + sankey -->
       <section class="tab-panel tab-panel-dashboard">
         <main class="layout layout-dashboard">
-          <!-- Transactions -->
-          <section class="panel">
-            <h2>Transactions</h2>
-            <table class="transactions-table">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Description</th>
-                  <th>Amount</th>
-                  <th>Category</th>
-                </tr>
-              </thead>
-              <tbody id="transactions-body"></tbody>
-            </table>
-          </section>
-
-          <!-- Summary -->
           <section class="panel">
             <h2>Summary</h2>
             <div id="income-statement"></div>
@@ -85,7 +75,95 @@
         </main>
       </section>
 
-      <!-- CATEGORIES TAB (tree + edit button) -->
+      <!-- TRANSACTIONS TAB -->
+      <section class="tab-panel tab-panel-transactions">
+        <main class="layout layout-transactions">
+          <section class="panel">
+            <div class="panel-header-row">
+              <h2>Transactions</h2>
+              <div class="panel-actions">
+                <button id="add-transaction" class="primary-button">
+                  Add transaction
+                </button>
+                <button id="delete-selected" class="secondary-button">
+                  Delete selected
+                </button>
+              </div>
+            </div>
+
+            <div class="transactions-bulk">
+              <div class="bulk-group">
+                <label class="bulk-label">Set category for selected:</label>
+                <select id="bulk-category-select"></select>
+                <button id="apply-bulk-category" class="secondary-button">
+                  Apply
+                </button>
+              </div>
+              <div class="bulk-group">
+                <label class="bulk-label">Add label to selected:</label>
+                <input
+                  id="bulk-label-input"
+                  class="bulk-input"
+                  type="text"
+                  placeholder="Label..."
+                />
+                <button id="apply-bulk-label" class="secondary-button">
+                  Add
+                </button>
+              </div>
+            </div>
+
+            <div class="transactions-filters">
+              <input
+                id="tx-search"
+                class="filter-input"
+                type="text"
+                placeholder="Search description, category, account..."
+              />
+              <select id="tx-filter-account" class="filter-select">
+                <option value="all">All accounts</option>
+              </select>
+              <select id="tx-filter-category" class="filter-select">
+                <option value="all">All categories</option>
+              </select>
+              <input
+                id="tx-filter-label"
+                class="filter-input"
+                type="text"
+                placeholder="Label contains..."
+              />
+              <select id="tx-filter-date-mode" class="filter-select">
+                <option value="any">Any date</option>
+                <option value="on">On</option>
+                <option value="before">Before</option>
+                <option value="after">After</option>
+                <option value="between">Between</option>
+              </select>
+              <input id="tx-date-from" class="filter-input" type="date" />
+              <input id="tx-date-to" class="filter-input" type="date" />
+            </div>
+
+            <table class="transactions-table">
+              <thead>
+                <tr>
+                  <th class="tx-col-select"></th>
+                  <th id="tx-header-date" class="sortable">Date</th>
+                  <th>Description</th>
+                  <th>Original</th>
+                  <th>Converted</th>
+                  <th>Category</th>
+                  <th>Account</th>
+                  <th>Labels</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="transactions-body"></tbody>
+            </table>
+          </section>
+        </main>
+      </section>
+
+      <!-- CATEGORIES TAB -->
       <section class="tab-panel tab-panel-categories">
         <main class="layout layout-categories">
           <!-- Left: category tree -->
@@ -114,7 +192,7 @@
     </div>
   </div>
 
-  <!-- POPUP EDITOR MODAL -->
+  <!-- CATEGORY EDITOR MODAL -->
   <div id="category-editor-modal" class="modal hidden">
     <div class="modal-backdrop"></div>
     <div class="modal-dialog">
@@ -147,6 +225,76 @@
       </div>
     </div>
   </div>
+
+  <!-- TRANSACTION EDITOR MODAL -->
+  <div id="transaction-editor-modal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-dialog">
+      <h2 id="tx-modal-title">Add transaction</h2>
+      <div class="tx-modal-body">
+        <label class="tx-modal-field">
+          <span>Date</span>
+          <input type="date" id="tx-modal-date" />
+        </label>
+        <label class="tx-modal-field">
+          <span>Description</span>
+          <input type="text" id="tx-modal-description" />
+        </label>
+        <label class="tx-modal-field">
+          <span>Original amount</span>
+          <div class="tx-modal-inline">
+            <input type="number" step="0.01" id="tx-modal-original-amount" />
+            <input
+              type="text"
+              id="tx-modal-original-currency"
+              class="tx-modal-currency-input"
+              placeholder="AED"
+            />
+          </div>
+        </label>
+        <label class="tx-modal-field">
+          <span>Converted amount</span>
+          <div class="tx-modal-inline">
+            <input type="number" step="0.01" id="tx-modal-converted-amount" />
+            <input
+              type="text"
+              id="tx-modal-converted-currency"
+              class="tx-modal-currency-input"
+              placeholder="AED"
+            />
+          </div>
+        </label>
+        <label class="tx-modal-field">
+          <span>Account</span>
+          <input type="text" id="tx-modal-account" />
+        </label>
+        <label class="tx-modal-field">
+          <span>Labels</span>
+          <input
+            type="text"
+            id="tx-modal-labels"
+            placeholder="Comma separated: Work, Travel, ..."
+          />
+        </label>
+        <label class="tx-modal-field">
+          <span>Category</span>
+          <select id="tx-modal-category"></select>
+        </label>
+      </div>
+      <div class="editor-actions">
+        <button id="tx-modal-cancel" class="secondary-button">
+          Cancel
+        </button>
+        <button id="tx-modal-save" class="primary-button">
+          Save
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script defer src="src/app.js"></script>
+</body>
+</html>
 
   <script defer src="src/app.js"></script>
 </body>
