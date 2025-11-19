@@ -1,17 +1,17 @@
 console.log("App script loaded");
 
-// ----- STATE -----
+// ===== STATE =====
 var state = {
   transactions: [],
   categories: [],
   dateFilter: {
-    mode: "6m", // default a bit wider so sample data shows
+    mode: "6m", // default so sample data shows
     from: null,
     to: null
   }
 };
 
-// ----- SAMPLE DATA -----
+// ===== SAMPLE DATA =====
 function loadSampleData() {
   console.log("Loading sample data...");
 
@@ -61,7 +61,7 @@ function loadSampleData() {
   ];
 }
 
-// ----- INIT -----
+// ===== INIT =====
 function init() {
   console.log("Initialising app...");
   loadSampleData();
@@ -72,7 +72,7 @@ function init() {
   renderIncomeStatement();
 }
 
-// ----- TABS & CATEGORY EDITOR -----
+// ===== TABS & CATEGORY EDITOR =====
 function setupTabsAndCategoryEditor() {
   var dashTab = document.getElementById("tab-dashboard");
   var catTab = document.getElementById("tab-categories");
@@ -88,17 +88,13 @@ function setupTabsAndCategoryEditor() {
 
   function setActiveTab(tab) {
     if (tab === "dashboard") {
-      // show dashboard, hide categories
       dashTab.style.display = "block";
       catTab.style.display = "none";
-
       btnDash.classList.add("active");
       btnCat.classList.remove("active");
     } else {
-      // show categories, hide dashboard
       dashTab.style.display = "none";
       catTab.style.display = "block";
-
       btnDash.classList.remove("active");
       btnCat.classList.add("active");
     }
@@ -132,11 +128,11 @@ function setupTabsAndCategoryEditor() {
     });
   }
 
-  // start with dashboard visible only
+  // start with dashboard visible
   setActiveTab("dashboard");
 }
 
-// Turn current categories into dash-based text
+// turn current categories into dash-based text
 function generateCategoriesTextFromState() {
   if (!state.categories.length) return "";
 
@@ -166,7 +162,7 @@ function generateCategoriesTextFromState() {
   return lines.join("\n");
 }
 
-// Parse dash-based text into category objects
+// parse dash-based text into category objects
 function parseCategoriesText(text) {
   var rawLines = text.split("\n");
   var lines = [];
@@ -186,7 +182,7 @@ function parseCategoriesText(text) {
     var rawName = match[2].trim();
     if (!rawName) return;
 
-    var level = dashes; // 0 = top level
+    var level = dashes;
     var parentMeta = level === 0 ? null : lastByLevel[level - 1] || null;
     var path = parentMeta ? parentMeta.path + " > " + rawName : rawName;
     var id = path;
@@ -219,7 +215,7 @@ function parseCategoriesText(text) {
   return result;
 }
 
-// Simple heuristic for Income vs Expense
+// simple heuristic for Income vs Expense
 function inferCategoryType(name, parentMeta) {
   var parentName = parentMeta ? parentMeta.name : "";
   var text = (parentName + " " + name).toLowerCase();
@@ -235,7 +231,7 @@ function inferCategoryType(name, parentMeta) {
   return "Expense";
 }
 
-// ----- PERIOD FILTER -----
+// ===== PERIOD FILTER =====
 function setupPeriodFilter() {
   var select = document.getElementById("period-select");
   var customRange = document.getElementById("custom-range");
@@ -271,11 +267,10 @@ function setupPeriodFilter() {
     });
   }
 
-  // Set select to the default mode
   select.value = state.dateFilter.mode;
 }
 
-// ----- CATEGORY TREE RENDERING -----
+// ===== CATEGORY TREE RENDERING =====
 function renderCategoryTree() {
   var container = document.getElementById("category-tree");
   if (!container) return;
@@ -329,7 +324,7 @@ function renderCategoryNode(container, node, childrenMap, path) {
   });
 }
 
-// ----- TRANSACTIONS TABLE -----
+// ===== TRANSACTIONS TABLE =====
 function renderTransactionsTable() {
   var tbody = document.getElementById("transactions-body");
   if (!tbody) return;
@@ -367,7 +362,7 @@ function renderTransactionsTable() {
   });
 }
 
-// ----- INCOME STATEMENT -----
+// ===== INCOME STATEMENT =====
 function renderIncomeStatement() {
   var container = document.getElementById("income-statement");
   if (!container) return;
@@ -375,15 +370,10 @@ function renderIncomeStatement() {
 
   var filtered = getFilteredTransactions();
 
-  var groups = {
-    Income: {},
-    Expense: {}
-  };
+  var groups = { Income: {}, Expense: {} };
 
   filtered.forEach(function (tx) {
-    var cat = state.categories.find(function (c) {
-      return c.id === tx.categoryId;
-    });
+    var cat = state.categories.find(function (c) { return c.id === tx.categoryId; });
     var type = cat && cat.type ? cat.type : (tx.amount >= 0 ? "Income" : "Expense");
     var group = type === "Income" ? groups.Income : groups.Expense;
     var key = getCategoryName(tx.categoryId);
@@ -447,15 +437,14 @@ function buildIncomeGroup(titleText, linesMap, total) {
   return group;
 }
 
-// ----- HELPERS -----
+// ===== HELPERS =====
 function getFilteredTransactions() {
   var mode = state.dateFilter.mode;
   var from = state.dateFilter.from;
   var to = state.dateFilter.to;
   var today = new Date();
 
-  var start = null;
-  var end = null;
+  var start, end;
 
   if (mode === "custom" && from && to) {
     start = new Date(from);
@@ -477,9 +466,7 @@ function getFilteredTransactions() {
 }
 
 function getCategoryName(categoryId) {
-  var cat = state.categories.find(function (c) {
-    return c.id === categoryId;
-  });
+  var cat = state.categories.find(function (c) { return c.id === categoryId; });
   return cat ? cat.name : "Uncategorised";
 }
 
@@ -531,9 +518,7 @@ function handleCategoryDrop(event) {
 
   if (draggedTransactionId == null) return;
 
-  var tx = state.transactions.find(function (t) {
-    return t.id === draggedTransactionId;
-  });
+  var tx = state.transactions.find(function (t) { return t.id === draggedTransactionId; });
   if (!tx) return;
 
   tx.categoryId = categoryId;
