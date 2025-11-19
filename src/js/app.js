@@ -82,28 +82,35 @@ function setupTabsAndCategoryEditor() {
   var applyBtn = document.getElementById("apply-categories");
 
   if (!dashTab || !catTab || !btnDash || !btnCat) {
+    console.log("Tabs elements not found");
     return;
   }
 
   function setActiveTab(tab) {
     if (tab === "dashboard") {
-      dashTab.classList.add("active");
-      catTab.classList.remove("active");
+      // show dashboard, hide categories
+      dashTab.style.display = "block";
+      catTab.style.display = "none";
+
       btnDash.classList.add("active");
       btnCat.classList.remove("active");
     } else {
-      dashTab.classList.remove("active");
-      catTab.classList.add("active");
+      // show categories, hide dashboard
+      dashTab.style.display = "none";
+      catTab.style.display = "block";
+
       btnDash.classList.remove("active");
       btnCat.classList.add("active");
     }
   }
 
   btnDash.addEventListener("click", function () {
+    console.log("Dashboard tab clicked");
     setActiveTab("dashboard");
   });
 
   btnCat.addEventListener("click", function () {
+    console.log("Categories tab clicked");
     if (editor && editor.value.replace(/\s/g, "") === "") {
       editor.value = generateCategoriesTextFromState();
     }
@@ -125,6 +132,7 @@ function setupTabsAndCategoryEditor() {
     });
   }
 
+  // start with dashboard visible only
   setActiveTab("dashboard");
 }
 
