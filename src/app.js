@@ -7,11 +7,26 @@ var state = {
     mode: "6m",
     from: null,
     to: null
+  },
+  txFilter: {
+    text: "",
+    account: "all",
+    categoryId: "all",
+    labelText: "",
+    dateMode: "any",
+    from: null,
+    to: null,
+    sortByDate: "desc"
   }
 };
 
 // which parents are collapsed in the tree
 var collapsedCategoryIds = new Set();
+var selectedTransactionIds = new Set();
+
+// for transaction modal
+var txModalMode = "add"; // "add" | "duplicate"
+var txModalSourceTx = null;
 
 // ===== SAMPLE DATA =====
 function loadSampleData() {
@@ -31,34 +46,55 @@ function loadSampleData() {
     { id: "Life & Entertainment > Gifts", name: "Gifts", parentId: "Life & Entertainment", type: "Expense" }
   ];
 
+  // transactions with original + converted amounts, account, labels
   state.transactions = [
     {
       id: 1,
       date: "2025-10-01",
       description: "September Salary",
-      amount: 16000,
-      categoryId: "Income > Base Salary"
+      originalAmount: 16000,
+      originalCurrency: "AED",
+      convertedAmount: 16000,
+      convertedCurrency: "AED",
+      categoryId: "Income > Base Salary",
+      account: "Salary Account",
+      labels: ["Work"]
     },
     {
       id: 2,
       date: "2025-10-03",
       description: "Dinner out",
-      amount: -210,
-      categoryId: "Food & Drinks > Restaurants"
+      originalAmount: -210,
+      originalCurrency: "AED",
+      convertedAmount: -210,
+      convertedCurrency: "AED",
+      categoryId: "Food & Drinks > Restaurants",
+      account: "Current Account",
+      labels: ["Food"]
     },
     {
       id: 3,
       date: "2025-10-04",
       description: "Food delivery",
-      amount: -95,
-      categoryId: "Food & Drinks > Food Delivery"
+      originalAmount: -95,
+      originalCurrency: "AED",
+      convertedAmount: -95,
+      convertedCurrency: "AED",
+      categoryId: "Food & Drinks > Food Delivery",
+      account: "Current Account",
+      labels: ["Food", "Delivery"]
     },
     {
       id: 4,
       date: "2025-09-29",
       description: "Gift for friend",
-      amount: -150,
-      categoryId: "Life & Entertainment > Gifts"
+      originalAmount: -150,
+      originalCurrency: "AED",
+      convertedAmount: -150,
+      convertedCurrency: "AED",
+      categoryId: "Life & Entertainment > Gifts",
+      account: "Current Account",
+      labels: ["Gift"]
     }
   ];
 }
@@ -70,12 +106,15 @@ function init() {
   setupPeriodFilter();
   setupCategoryEditorModal();
   setupTabHeaderVisibility();
+  setupTransactionsUI();
+  setupTransactionModal();
   renderTransactionsTable();
   renderIncomeStatement();
   renderAllCategoryTrees();
+  refreshTransactionsFilterOptions();
 }
 
-// ===== PERIOD SELECTOR =====
+// ===== PERIOD SELECTOR (Dashboard only) =====
 function setupPeriodFilter() {
   var select = document.getElementById("period-select");
   var customRange = document.getElementById("custom-range");
@@ -93,34 +132,35 @@ function setupPeriodFilter() {
       customRange.classList.add("hidden");
       state.dateFilter.from = null;
       state.dateFilter.to = null;
-      rerenderAll();
+      renderIncomeStatement();
     }
   });
 
   if (fromInput) {
     fromInput.addEventListener("change", function () {
       state.dateFilter.from = fromInput.value || null;
-      rerenderAll();
+      renderIncomeStatement();
     });
   }
 
   if (toInput) {
     toInput.addEventListener("change", function () {
       state.dateFilter.to = toInput.value || null;
-      rerenderAll();
+      renderIncomeStatement();
     });
   }
 
   select.value = state.dateFilter.mode;
 }
 
-// hide period selector on Categories tab
+// hide period selector on Categories tab, show on others
 function setupTabHeaderVisibility() {
   var dashRadio = document.getElementById("tab-radio-dashboard");
+  var txRadio = document.getElementById("tab-radio-transactions");
   var catRadio = document.getElementById("tab-radio-categories");
   var filters = document.querySelector(".top-bar__filters");
 
-  if (!dashRadio || !catRadio || !filters) {
+  if (!dashRadio || !txRadio || !catRadio || !filters) {
     console.log("Tab header visibility: elements not found");
     return;
   }
@@ -134,6 +174,7 @@ function setupTabHeaderVisibility() {
   }
 
   dashRadio.addEventListener("change", updateFiltersVisibility);
+  txRadio.addEventListener("change", updateFiltersVisibility);
   catRadio.addEventListener("change", updateFiltersVisibility);
   updateFiltersVisibility();
 }
@@ -182,7 +223,8 @@ function setupCategoryEditorModal() {
     state.categories = categories;
     collapsedCategoryIds.clear();
     renderAllCategoryTrees();
-    rerenderAll();
+    refreshTransactionsFilterOptions();
+    renderIncomeStatement();
 
     alert(
       "Categories updated: " +
@@ -270,7 +312,6 @@ function parseCategoriesText(text) {
 
   console.log("parseCategoriesText: built", categoriesWithMeta.length, "nodes");
 
-  // we keep level so we can use it if needed
   var result = [];
   categoriesWithMeta.forEach(function (c) {
     result.push({
@@ -360,7 +401,6 @@ function renderCategoryTreeInto(containerId) {
     if (depth === 0) {
       path.textContent = cat.type || "";
     } else {
-      // nothing or could show full path
       path.textContent = "";
     }
 
@@ -382,16 +422,388 @@ function renderCategoryTreeInto(containerId) {
   });
 }
 
-// ===== TRANSACTIONS / INCOME STATEMENT =====
+// ===== TRANSACTIONS TAB UI =====
+function setupTransactionsUI() {
+  var searchInput = document.getElementById("tx-search");
+  var accountSelect = document.getElementById("tx-filter-account");
+  var categorySelect = document.getElementById("tx-filter-category");
+  var labelInput = document.getElementById("tx-filter-label");
+  var dateModeSelect = document.getElementById("tx-filter-date-mode");
+  var fromInput = document.getElementById("tx-date-from");
+  var toInput = document.getElementById("tx-date-to");
+  var dateHeader = document.getElementById("tx-header-date");
+
+  var addBtn = document.getElementById("add-transaction");
+  var deleteBtn = document.getElementById("delete-selected");
+  var bulkCatSelect = document.getElementById("bulk-category-select");
+  var bulkCatBtn = document.getElementById("apply-bulk-category");
+  var bulkLabelInput = document.getElementById("bulk-label-input");
+  var bulkLabelBtn = document.getElementById("apply-bulk-label");
+
+  if (!searchInput) return;
+
+  searchInput.addEventListener("input", function () {
+    state.txFilter.text = (searchInput.value || "").toLowerCase();
+    renderTransactionsTable();
+  });
+
+  if (accountSelect) {
+    accountSelect.addEventListener("change", function () {
+      state.txFilter.account = accountSelect.value;
+      renderTransactionsTable();
+    });
+  }
+
+  if (categorySelect) {
+    categorySelect.addEventListener("change", function () {
+      state.txFilter.categoryId = categorySelect.value;
+      renderTransactionsTable();
+    });
+  }
+
+  if (labelInput) {
+    labelInput.addEventListener("input", function () {
+      state.txFilter.labelText = (labelInput.value || "").toLowerCase();
+      renderTransactionsTable();
+    });
+  }
+
+  if (dateModeSelect) {
+    dateModeSelect.addEventListener("change", function () {
+      state.txFilter.dateMode = dateModeSelect.value;
+      renderTransactionsTable();
+    });
+  }
+
+  if (fromInput) {
+    fromInput.addEventListener("change", function () {
+      state.txFilter.from = fromInput.value || null;
+      renderTransactionsTable();
+    });
+  }
+
+  if (toInput) {
+    toInput.addEventListener("change", function () {
+      state.txFilter.to = toInput.value || null;
+      renderTransactionsTable();
+    });
+  }
+
+  if (dateHeader) {
+    dateHeader.addEventListener("click", function () {
+      var f = state.txFilter;
+      f.sortByDate = f.sortByDate === "asc" ? "desc" : "asc";
+      renderTransactionsTable();
+    });
+  }
+
+  if (addBtn) {
+    addBtn.addEventListener("click", function () {
+      openTransactionModal("add", null);
+    });
+  }
+
+  if (deleteBtn) {
+    deleteBtn.addEventListener("click", function () {
+      if (!selectedTransactionIds.size) return;
+      if (!confirm("Delete selected transactions?")) return;
+      state.transactions = state.transactions.filter(function (tx) {
+        return !selectedTransactionIds.has(tx.id);
+      });
+      selectedTransactionIds.clear();
+      refreshTransactionsFilterOptions();
+      renderTransactionsTable();
+      renderIncomeStatement();
+    });
+  }
+
+  if (bulkCatBtn && bulkCatSelect) {
+    bulkCatBtn.addEventListener("click", function () {
+      var catId = bulkCatSelect.value;
+      if (!catId || catId === "none" || !selectedTransactionIds.size) return;
+      state.transactions.forEach(function (tx) {
+        if (selectedTransactionIds.has(tx.id)) {
+          tx.categoryId = catId;
+        }
+      });
+      renderTransactionsTable();
+      renderIncomeStatement();
+    });
+  }
+
+  if (bulkLabelBtn && bulkLabelInput) {
+    bulkLabelBtn.addEventListener("click", function () {
+      var label = (bulkLabelInput.value || "").trim();
+      if (!label || !selectedTransactionIds.size) return;
+      var lower = label.toLowerCase();
+      state.transactions.forEach(function (tx) {
+        if (!selectedTransactionIds.has(tx.id)) return;
+        if (!tx.labels) tx.labels = [];
+        var exists = tx.labels.some(function (l) {
+          return l.toLowerCase() === lower;
+        });
+        if (!exists) tx.labels.push(label);
+      });
+      bulkLabelInput.value = "";
+      renderTransactionsTable();
+      refreshTransactionsFilterOptions();
+    });
+  }
+}
+
+// build flat category list in tree-order for dropdowns
+function getCategoryOptionsFlat() {
+  var result = [];
+  if (!state.categories.length) return result;
+
+  var childrenMap = {};
+  state.categories.forEach(function (c) {
+    var key = c.parentId || "root";
+    if (!childrenMap[key]) childrenMap[key] = [];
+    childrenMap[key].push(c);
+  });
+
+  function dfs(cat, depth, pathLabel) {
+    var label =
+      (depth > 0 ? Array(depth + 1).join("  ") : "") + cat.name;
+    result.push({ id: cat.id, label: label, fullPath: pathLabel });
+    var children = childrenMap[cat.id] || [];
+    children.forEach(function (child) {
+      dfs(child, depth + 1, pathLabel + " › " + child.name);
+    });
+  }
+
+  var roots = childrenMap["root"] || [];
+  roots.forEach(function (root) {
+    dfs(root, 0, root.name);
+  });
+
+  return result;
+}
+
+// refresh account + category filter options & bulk category select
+function refreshTransactionsFilterOptions() {
+  var accountSelect = document.getElementById("tx-filter-account");
+  var categorySelect = document.getElementById("tx-filter-category");
+  var bulkCatSelect = document.getElementById("bulk-category-select");
+
+  var accounts = new Set();
+  state.transactions.forEach(function (tx) {
+    if (tx.account) accounts.add(tx.account);
+  });
+
+  if (accountSelect) {
+    var current = accountSelect.value;
+    accountSelect.innerHTML = '<option value="all">All accounts</option>';
+    accounts.forEach(function (acc) {
+      var opt = document.createElement("option");
+      opt.value = acc;
+      opt.textContent = acc;
+      accountSelect.appendChild(opt);
+    });
+    if (current && current !== "all") accountSelect.value = current;
+  }
+
+  var catOptions = getCategoryOptionsFlat();
+
+  function fillCategorySelect(select, includeAll) {
+    if (!select) return;
+    var cur = select.value;
+    select.innerHTML = "";
+    if (includeAll) {
+      var optAll = document.createElement("option");
+      optAll.value = "all";
+      optAll.textContent = "All categories";
+      select.appendChild(optAll);
+    } else {
+      var optNone = document.createElement("option");
+      optNone.value = "none";
+      optNone.textContent = "Select category";
+      select.appendChild(optNone);
+    }
+    catOptions.forEach(function (c) {
+      var opt = document.createElement("option");
+      opt.value = c.id;
+      opt.textContent = c.label;
+      select.appendChild(opt);
+    });
+    if (cur) select.value = cur;
+  }
+
+  fillCategorySelect(categorySelect, true);
+  fillCategorySelect(bulkCatSelect, false);
+}
+
+// ===== TRANSACTION MODAL (add / duplicate) =====
+function setupTransactionModal() {
+  var modal = document.getElementById("transaction-editor-modal");
+  if (!modal) return;
+
+  var backdrop = modal.querySelector(".modal-backdrop");
+  var cancelBtn = document.getElementById("tx-modal-cancel");
+  var saveBtn = document.getElementById("tx-modal-save");
+
+  function closeModal() {
+    modal.classList.add("hidden");
+  }
+
+  if (backdrop) backdrop.addEventListener("click", closeModal);
+  if (cancelBtn) cancelBtn.addEventListener("click", closeModal);
+
+  if (saveBtn) {
+    saveBtn.addEventListener("click", function () {
+      var date = document.getElementById("tx-modal-date").value;
+      var desc = document.getElementById("tx-modal-description").value;
+      var oAmt = parseFloat(
+        document.getElementById("tx-modal-original-amount").value || "0"
+      );
+      var oCur = document.getElementById("tx-modal-original-currency").value || "AED";
+      var cAmt = parseFloat(
+        document.getElementById("tx-modal-converted-amount").value || "0"
+      );
+      var cCur = document.getElementById("tx-modal-converted-currency").value || "AED";
+      var account = document.getElementById("tx-modal-account").value;
+      var labelsText = document
+        .getElementById("tx-modal-labels")
+        .value.trim();
+      var catSelect = document.getElementById("tx-modal-category");
+      var categoryId = catSelect ? catSelect.value || null : null;
+
+      var labels = [];
+      if (labelsText) {
+        labels = labelsText
+          .split(",")
+          .map(function (t) {
+            return t.trim();
+          })
+          .filter(Boolean);
+      }
+
+      var newId =
+        state.transactions.reduce(function (max, tx) {
+          return Math.max(max, tx.id);
+        }, 0) + 1;
+
+      var tx = {
+        id: newId,
+        date: date || new Date().toISOString().slice(0, 10),
+        description: desc || "",
+        originalAmount: isNaN(oAmt) ? 0 : oAmt,
+        originalCurrency: oCur,
+        convertedAmount: isNaN(cAmt) ? 0 : cAmt,
+        convertedCurrency: cCur,
+        categoryId: categoryId,
+        account: account || "",
+        labels: labels
+      };
+
+      state.transactions.push(tx);
+      refreshTransactionsFilterOptions();
+      renderTransactionsTable();
+      renderIncomeStatement();
+      closeModal();
+    });
+  }
+}
+
+function openTransactionModal(mode, sourceTx) {
+  var modal = document.getElementById("transaction-editor-modal");
+  if (!modal) return;
+
+  txModalMode = mode;
+  txModalSourceTx = sourceTx || null;
+
+  var titleEl = document.getElementById("tx-modal-title");
+  if (titleEl) {
+    titleEl.textContent =
+      mode === "duplicate" ? "Duplicate transaction" : "Add transaction";
+  }
+
+  var dateInput = document.getElementById("tx-modal-date");
+  var descInput = document.getElementById("tx-modal-description");
+  var oAmtInput = document.getElementById("tx-modal-original-amount");
+  var oCurInput = document.getElementById("tx-modal-original-currency");
+  var cAmtInput = document.getElementById("tx-modal-converted-amount");
+  var cCurInput = document.getElementById("tx-modal-converted-currency");
+  var accInput = document.getElementById("tx-modal-account");
+  var labelsInput = document.getElementById("tx-modal-labels");
+  var catSelect = document.getElementById("tx-modal-category");
+
+  // fill category options
+  if (catSelect) {
+    var opts = getCategoryOptionsFlat();
+    catSelect.innerHTML = "";
+    var optNone = document.createElement("option");
+    optNone.value = "";
+    optNone.textContent = "Uncategorised";
+    catSelect.appendChild(optNone);
+    opts.forEach(function (c) {
+      var opt = document.createElement("option");
+      opt.value = c.id;
+      opt.textContent = c.label;
+      catSelect.appendChild(opt);
+    });
+  }
+
+  var today = new Date().toISOString().slice(0, 10);
+
+  if (mode === "duplicate" && sourceTx) {
+    dateInput.value = sourceTx.date || today;
+    descInput.value = sourceTx.description || "";
+    oAmtInput.value = sourceTx.originalAmount;
+    oCurInput.value = sourceTx.originalCurrency || "AED";
+    cAmtInput.value = sourceTx.convertedAmount;
+    cCurInput.value = sourceTx.convertedCurrency || "AED";
+    accInput.value = sourceTx.account || "";
+    labelsInput.value = (sourceTx.labels || []).join(", ");
+    if (catSelect && sourceTx.categoryId) {
+      catSelect.value = sourceTx.categoryId;
+    }
+  } else {
+    dateInput.value = today;
+    descInput.value = "";
+    oAmtInput.value = "";
+    oCurInput.value = "AED";
+    cAmtInput.value = "";
+    cCurInput.value = "AED";
+    accInput.value = "";
+    labelsInput.value = "";
+    if (catSelect) catSelect.value = "";
+  }
+
+  modal.classList.remove("hidden");
+}
+
+// ===== TRANSACTIONS TABLE RENDERING =====
 function renderTransactionsTable() {
   var tbody = document.getElementById("transactions-body");
   if (!tbody) return;
   tbody.innerHTML = "";
 
-  var filtered = getFilteredTransactions();
+  var txs = getTransactionsForTable();
+  var dateHeader = document.getElementById("tx-header-date");
 
-  filtered.forEach(function (tx) {
+  if (dateHeader) {
+    var base = "Date";
+    var dir = state.txFilter.sortByDate;
+    if (dir === "asc") dateHeader.textContent = base + " ▲";
+    else if (dir === "desc") dateHeader.textContent = base + " ▼";
+    else dateHeader.textContent = base;
+  }
+
+  txs.forEach(function (tx) {
     var tr = document.createElement("tr");
+
+    // checkbox
+    var selectTd = document.createElement("td");
+    var checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = selectedTransactionIds.has(tx.id);
+    checkbox.addEventListener("change", function () {
+      if (checkbox.checked) selectedTransactionIds.add(tx.id);
+      else selectedTransactionIds.delete(tx.id);
+    });
+    selectTd.appendChild(checkbox);
 
     var dateTd = document.createElement("td");
     dateTd.textContent = tx.date;
@@ -399,27 +811,142 @@ function renderTransactionsTable() {
     var descTd = document.createElement("td");
     descTd.textContent = tx.description;
 
-    var amountTd = document.createElement("td");
-    amountTd.textContent = formatAmount(tx.amount);
+    var origTd = document.createElement("td");
+    origTd.textContent = formatAmountCurrency(
+      tx.originalAmount,
+      tx.originalCurrency
+    );
+
+    var convTd = document.createElement("td");
+    convTd.textContent = formatAmountCurrency(
+      tx.convertedAmount,
+      tx.convertedCurrency
+    );
 
     var catTd = document.createElement("td");
-    catTd.textContent = getCategoryName(tx.categoryId);
+    var catSelect = document.createElement("select");
+    catSelect.className = "filter-select";
+    var opts = getCategoryOptionsFlat();
+    var optNone = document.createElement("option");
+    optNone.value = "";
+    optNone.textContent = "Uncategorised";
+    catSelect.appendChild(optNone);
+    opts.forEach(function (c) {
+      var opt = document.createElement("option");
+      opt.value = c.id;
+      opt.textContent = c.label;
+      catSelect.appendChild(opt);
+    });
+    if (tx.categoryId) catSelect.value = tx.categoryId;
+    catSelect.addEventListener("change", function () {
+      tx.categoryId = catSelect.value || null;
+      renderIncomeStatement();
+    });
+    catTd.appendChild(catSelect);
 
+    var accTd = document.createElement("td");
+    accTd.textContent = tx.account || "";
+
+    var labelsTd = document.createElement("td");
+    labelsTd.textContent = (tx.labels || []).join(", ");
+
+    var actionsTd = document.createElement("td");
+    var dupBtn = document.createElement("button");
+    dupBtn.textContent = "Duplicate";
+    dupBtn.className = "table-link-button";
+    dupBtn.addEventListener("click", function () {
+      openTransactionModal("duplicate", tx);
+    });
+    actionsTd.appendChild(dupBtn);
+
+    tr.appendChild(selectTd);
     tr.appendChild(dateTd);
     tr.appendChild(descTd);
-    tr.appendChild(amountTd);
+    tr.appendChild(origTd);
+    tr.appendChild(convTd);
     tr.appendChild(catTd);
+    tr.appendChild(accTd);
+    tr.appendChild(labelsTd);
+    tr.appendChild(actionsTd);
 
     tbody.appendChild(tr);
   });
 }
 
+function getTransactionsForTable() {
+  var f = state.txFilter;
+  var list = state.transactions.slice();
+
+  // text search: description, account, category name
+  if (f.text) {
+    list = list.filter(function (tx) {
+      var catName = getCategoryName(tx.categoryId);
+      var hay =
+        (tx.description || "") +
+        " " +
+        (tx.account || "") +
+        " " +
+        (catName || "");
+      return hay.toLowerCase().indexOf(f.text) >= 0;
+    });
+  }
+
+  // account filter
+  if (f.account && f.account !== "all") {
+    list = list.filter(function (tx) {
+      return tx.account === f.account;
+    });
+  }
+
+  // category filter
+  if (f.categoryId && f.categoryId !== "all") {
+    list = list.filter(function (tx) {
+      return tx.categoryId === f.categoryId;
+    });
+  }
+
+  // label filter (contains text)
+  if (f.labelText) {
+    list = list.filter(function (tx) {
+      var labels = tx.labels || [];
+      var combined = labels.join(" ").toLowerCase();
+      return combined.indexOf(f.labelText) >= 0;
+    });
+  }
+
+  // date filters
+  if (f.dateMode !== "any") {
+    list = list.filter(function (tx) {
+      var d = tx.date;
+      if (!d) return false;
+      if (f.dateMode === "on" && f.from) return d === f.from;
+      if (f.dateMode === "before" && f.from) return d < f.from;
+      if (f.dateMode === "after" && f.from) return d > f.from;
+      if (f.dateMode === "between" && f.from && f.to)
+        return d >= f.from && d <= f.to;
+      return true;
+    });
+  }
+
+  // sort by date
+  if (f.sortByDate === "asc" || f.sortByDate === "desc") {
+    list.sort(function (a, b) {
+      if (a.date === b.date) return a.id - b.id;
+      if (a.date < b.date) return f.sortByDate === "asc" ? -1 : 1;
+      return f.sortByDate === "asc" ? 1 : -1;
+    });
+  }
+
+  return list;
+}
+
+// ===== INCOME STATEMENT (Dashboard) =====
 function renderIncomeStatement() {
   var container = document.getElementById("income-statement");
   if (!container) return;
   container.innerHTML = "";
 
-  var filtered = getFilteredTransactions();
+  var filtered = getFilteredTransactionsDashboard();
   var groups = { Income: {}, Expense: {} };
 
   filtered.forEach(function (tx) {
@@ -427,11 +954,11 @@ function renderIncomeStatement() {
       return c.id === tx.categoryId;
     });
     var type =
-      cat && cat.type ? cat.type : tx.amount >= 0 ? "Income" : "Expense";
+      cat && cat.type ? cat.type : tx.convertedAmount >= 0 ? "Income" : "Expense";
     var group = type === "Income" ? groups.Income : groups.Expense;
     var key = getCategoryName(tx.categoryId);
     if (!group[key]) group[key] = 0;
-    group[key] += tx.amount;
+    group[key] += tx.convertedAmount;
   });
 
   var incomeTotal = sumValues(groups.Income);
@@ -492,8 +1019,8 @@ function buildIncomeGroup(titleText, linesMap, total) {
   return group;
 }
 
-// ===== HELPERS =====
-function getFilteredTransactions() {
+// transactions filtered by dashboard period selector
+function getFilteredTransactionsDashboard() {
   var mode = state.dateFilter.mode;
   var from = state.dateFilter.from;
   var to = state.dateFilter.to;
@@ -520,6 +1047,7 @@ function getFilteredTransactions() {
   });
 }
 
+// ===== HELPERS =====
 function getCategoryName(categoryId) {
   var cat = state.categories.find(function (c) {
     return c.id === categoryId;
@@ -533,17 +1061,16 @@ function formatAmount(amount) {
   return sign + value;
 }
 
+function formatAmountCurrency(amount, currency) {
+  return formatAmount(amount) + " " + (currency || "");
+}
+
 function sumValues(obj) {
   var sum = 0;
   for (var k in obj) {
     if (obj.hasOwnProperty(k)) sum += obj[k];
   }
   return sum;
-}
-
-function rerenderAll() {
-  renderTransactionsTable();
-  renderIncomeStatement();
 }
 
 document.addEventListener("DOMContentLoaded", init);
