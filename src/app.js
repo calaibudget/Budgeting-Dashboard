@@ -1,19 +1,19 @@
 console.log("App script loaded");
 
-// ============== STATE ==============
+// ========== STATE ==========
 var state = {
   transactions: [],
   categories: [],
   dateFilter: {
-    mode: "6m", // so sample data shows
+    mode: "6m", // default
     from: null,
-    to: null,
-  },
+    to: null
+  }
 };
 
-// ============== SAMPLE DATA ==============
+// ========== SAMPLE DATA ==========
 function loadSampleData() {
-  console.log("Loading sample data...");
+  console.log("loadSampleData");
 
   state.categories = [
     { id: "Income", name: "Income", parentId: null, type: "Income" },
@@ -21,52 +21,52 @@ function loadSampleData() {
       id: "Income > Base Salary",
       name: "Base Salary",
       parentId: "Income",
-      type: "Income",
+      type: "Income"
     },
     {
       id: "Income > Performance Bonus",
       name: "Performance Bonus",
       parentId: "Income",
-      type: "Income",
+      type: "Income"
     },
 
     {
       id: "Food & Drinks",
       name: "Food & Drinks",
       parentId: null,
-      type: "Expense",
+      type: "Expense"
     },
     {
       id: "Food & Drinks > Groceries",
       name: "Groceries",
       parentId: "Food & Drinks",
-      type: "Expense",
+      type: "Expense"
     },
     {
       id: "Food & Drinks > Restaurants",
       name: "Restaurants",
       parentId: "Food & Drinks",
-      type: "Expense",
+      type: "Expense"
     },
     {
       id: "Food & Drinks > Food Delivery",
       name: "Food Delivery",
       parentId: "Food & Drinks",
-      type: "Expense",
+      type: "Expense"
     },
 
     {
       id: "Life & Entertainment",
       name: "Life & Entertainment",
       parentId: null,
-      type: "Expense",
+      type: "Expense"
     },
     {
       id: "Life & Entertainment > Gifts",
       name: "Gifts",
       parentId: "Life & Entertainment",
-      type: "Expense",
-    },
+      type: "Expense"
+    }
   ];
 
   state.transactions = [
@@ -77,7 +77,7 @@ function loadSampleData() {
       amount: 16000,
       categoryId: "Income > Base Salary",
       account: "Salary Account",
-      labels: ["Work"],
+      labels: ["Work"]
     },
     {
       id: 2,
@@ -86,7 +86,7 @@ function loadSampleData() {
       amount: -210,
       categoryId: "Food & Drinks > Restaurants",
       account: "Current Account",
-      labels: ["Food"],
+      labels: ["Food"]
     },
     {
       id: 3,
@@ -95,7 +95,7 @@ function loadSampleData() {
       amount: -95,
       categoryId: "Food & Drinks > Food Delivery",
       account: "Current Account",
-      labels: ["Food", "Delivery"],
+      labels: ["Food", "Delivery"]
     },
     {
       id: 4,
@@ -104,14 +104,14 @@ function loadSampleData() {
       amount: -150,
       categoryId: "Life & Entertainment > Gifts",
       account: "Current Account",
-      labels: ["Gift"],
-    },
+      labels: ["Gift"]
+    }
   ];
 }
 
-// ============== INIT ==============
+// ========== INIT ==========
 function init() {
-  console.log("Initialising app...");
+  console.log("init() starting");
 
   loadSampleData();
   setupPeriodFilter();
@@ -121,27 +121,71 @@ function init() {
   renderCategoryTree();
   renderTransactionsTable();
   renderIncomeStatement();
+
+  console.log("init() finished");
 }
 
-// ============== CATEGORY EDITOR ==============
-function setupCategoryEditor() {
-  var editor = document.getElementById("categories-editor");
-  var applyBtn = document.getElementById("apply-categories");
+// ========== PERIOD FILTER (dashboard only) ==========
+function setupPeriodFilter() {
+  console.log("setupPeriodFilter");
+  var select = document.getElementById("period-select");
+  var customRange = document.getElementById("custom-range");
+  var fromInput = document.getElementById("date-from");
+  var toInput = document.getElementById("date-to");
 
-  if (!applyBtn || !editor) {
-    console.log("Category editor elements not found");
+  if (!select) {
+    console.log("period-select not found (ok if you removed it)");
     return;
   }
 
-  // Pre-populate editor with current categories in dash format
+  select.addEventListener("change", function () {
+    state.dateFilter.mode = select.value;
+
+    if (select.value === "custom") {
+      customRange.classList.remove("hidden");
+    } else {
+      customRange.classList.add("hidden");
+      state.dateFilter.from = null;
+      state.dateFilter.to = null;
+      rerenderAll();
+    }
+  });
+
+  if (fromInput) {
+    fromInput.addEventListener("change", function () {
+      state.dateFilter.from = fromInput.value || null;
+      rerenderAll();
+    });
+  }
+
+  if (toInput) {
+    toInput.addEventListener("change", function () {
+      state.dateFilter.to = toInput.value || null;
+      rerenderAll();
+    });
+  }
+
+  select.value = state.dateFilter.mode;
+}
+
+// ========== CATEGORY EDITOR ==========
+function setupCategoryEditor() {
+  console.log("setupCategoryEditor");
+  var editor = document.getElementById("categories-editor");
+  var applyBtn = document.getElementById("apply-categories");
+
+  if (!editor || !applyBtn) {
+    console.log("Category editor elements missing");
+    return;
+  }
+
+  // prefill editor from current state
   editor.value = buildCategoriesTextFromState();
 
   applyBtn.addEventListener("click", function () {
+    console.log("apply-categories clicked");
     var text = editor.value || "";
-    console.log("Update categories clicked. Raw text:", text);
-
     var categories = parseCategoriesText(text);
-    console.log("Parsed categories:", categories);
 
     if (!categories.length) {
       alert("No valid categories found. Please check your list.");
@@ -151,20 +195,14 @@ function setupCategoryEditor() {
     state.categories = categories;
     renderCategoryTree();
     rerenderAll();
-
-    alert(
-      "Categories updated: " +
-        categories.length +
-        ". Dashboard & Transactions now use the new structure."
-    );
+    alert("Categories updated: " + categories.length);
   });
 }
 
-// Turn current state.categories back into dash-based text (best effort)
+// build dashed text from state.categories
 function buildCategoriesTextFromState() {
   if (!state.categories.length) return "";
 
-  // rebuild children map
   var childrenMap = {};
   state.categories.forEach(function (c) {
     var key = c.parentId || "root";
@@ -190,12 +228,9 @@ function buildCategoriesTextFromState() {
   return lines.join("\n");
 }
 
-// dash text -> category objects
+// parse dashed text -> category objects
 function parseCategoriesText(text) {
-  if (!text || !text.trim()) {
-    console.log("parseCategoriesText: empty text");
-    return [];
-  }
+  if (!text || !text.trim()) return [];
 
   var rawLines = text.split("\n");
   var lines = [];
@@ -229,14 +264,12 @@ function parseCategoriesText(text) {
       parentId: parentId,
       type: type,
       path: path,
-      level: level,
+      level: level
     };
 
     categoriesWithMeta.push(cat);
     lastByLevel[level] = cat;
   });
-
-  console.log("parseCategoriesText: built", categoriesWithMeta.length, "nodes");
 
   var result = [];
   categoriesWithMeta.forEach(function (c) {
@@ -244,14 +277,13 @@ function parseCategoriesText(text) {
       id: c.id,
       name: c.name,
       parentId: c.parentId,
-      type: c.type,
+      type: c.type
     });
   });
 
   return result;
 }
 
-// Simple heuristic for Income vs Expense
 function inferCategoryType(name, parentMeta) {
   var parentName = parentMeta ? parentMeta.name : "";
   var text = (parentName + " " + name).toLowerCase();
@@ -269,46 +301,7 @@ function inferCategoryType(name, parentMeta) {
   return "Expense";
 }
 
-// ============== PERIOD FILTER (Dashboard only) ==============
-function setupPeriodFilter() {
-  var select = document.getElementById("period-select");
-  var customRange = document.getElementById("custom-range");
-  var fromInput = document.getElementById("date-from");
-  var toInput = document.getElementById("date-to");
-
-  if (!select) return;
-
-  select.addEventListener("change", function () {
-    state.dateFilter.mode = select.value;
-
-    if (select.value === "custom") {
-      customRange.classList.remove("hidden");
-    } else {
-      customRange.classList.add("hidden");
-      state.dateFilter.from = null;
-      state.dateFilter.to = null;
-      rerenderAll();
-    }
-  });
-
-  if (fromInput) {
-    fromInput.addEventListener("change", function () {
-      state.dateFilter.from = fromInput.value || null;
-      rerenderAll();
-    });
-  }
-
-  if (toInput) {
-    toInput.addEventListener("change", function () {
-      state.dateFilter.to = toInput.value || null;
-      rerenderAll();
-    });
-  }
-
-  select.value = state.dateFilter.mode;
-}
-
-// ============== CATEGORY TREE RENDERING ==============
+// ========== CATEGORY TREE RENDERING ==========
 function renderCategoryTree() {
   var container = document.getElementById("category-tree");
   if (!container) return;
@@ -367,7 +360,7 @@ function renderCategoryNode(container, node, childrenMap, path) {
   });
 }
 
-// ============== TRANSACTIONS TABLE ==============
+// ========== TRANSACTIONS TABLE ==========
 function renderTransactionsTable() {
   var tbody = document.getElementById("transactions-body");
   if (!tbody) return;
@@ -375,7 +368,7 @@ function renderTransactionsTable() {
 
   var filtered = getFilteredTransactions();
 
-  // Sort by date newest first
+  // newest first
   filtered.sort(function (a, b) {
     return a.date < b.date ? 1 : a.date > b.date ? -1 : 0;
   });
@@ -389,7 +382,7 @@ function renderTransactionsTable() {
     tr.addEventListener("dragstart", handleTransactionDragStart);
     tr.addEventListener("dragend", handleTransactionDragEnd);
 
-    // select checkbox
+    // checkbox
     var selectTd = document.createElement("td");
     selectTd.className = "tx-col-select";
     var cb = document.createElement("input");
@@ -420,7 +413,7 @@ function renderTransactionsTable() {
   });
 }
 
-// ============== INCOME STATEMENT ==============
+// ========== INCOME STATEMENT ==========
 function renderIncomeStatement() {
   var container = document.getElementById("income-statement");
   if (!container) return;
@@ -500,19 +493,21 @@ function buildIncomeGroup(titleText, linesMap, total) {
   return group;
 }
 
-// ============== IMPORT (PocketSmith CSV) ==============
+// ========== IMPORT (PocketSmith-style CSV) ==========
 function setupImport() {
+  console.log("setupImport");
   var fileInput = document.getElementById("import-file");
   var clearCheckbox = document.getElementById("import-clear-existing");
   var button = document.getElementById("import-button");
   var statusEl = document.getElementById("import-status");
 
   if (!fileInput || !button || !statusEl) {
-    console.log("Import elements not found");
+    console.log("Import elements missing");
     return;
   }
 
   button.addEventListener("click", function () {
+    console.log("Import button clicked");
     var file = fileInput.files[0];
     if (!file) {
       alert("Please choose a CSV file first.");
@@ -526,18 +521,17 @@ function setupImport() {
       try {
         var csvText = e.target.result;
         var imported = parsePocketSmithCsv(csvText);
-        console.log("Imported transactions from CSV:", imported.length);
 
         if (!imported.length) {
           statusEl.textContent = "No transactions found in CSV.";
           return;
         }
 
-        // assign IDs
         var maxId = 0;
         state.transactions.forEach(function (t) {
           if (typeof t.id === "number" && t.id > maxId) maxId = t.id;
         });
+
         imported.forEach(function (tx, idx) {
           tx.id = maxId + idx + 1;
         });
@@ -548,7 +542,6 @@ function setupImport() {
           state.transactions = state.transactions.concat(imported);
         }
 
-        // if we auto-created categories, refresh tree
         renderCategoryTree();
         rerenderAll();
 
@@ -580,32 +573,23 @@ function parsePocketSmithCsv(csvText) {
     return h.trim().toLowerCase();
   });
 
-  function headerIndex(possibleNames) {
+  function idx(names) {
     for (var i = 0; i < headers.length; i++) {
-      var h = headers[i];
-      for (var j = 0; j < possibleNames.length; j++) {
-        if (h === possibleNames[j]) return i;
+      for (var j = 0; j < names.length; j++) {
+        if (headers[i] === names[j]) return i;
       }
     }
     return -1;
   }
 
-  var idxDate = headerIndex(["date"]);
-  var idxDesc = headerIndex(["description", "merchant", "memo"]);
-  var idxOrigAmt = headerIndex(["amount", "amount (original)"]);
-  var idxOrigCur = headerIndex(["currency", "currency (original)"]);
-  var idxConvAmt = headerIndex([
-    "amount in base currency",
-    "amount (account)",
-  ]);
-  var idxConvCur = headerIndex(["base currency", "currency (account)"]);
-  var idxAccount = headerIndex(["account"]);
-  var idxCategory = headerIndex(["category"]);
+  var idxDate = idx(["date"]);
+  var idxDesc = idx(["description", "merchant", "memo"]);
+  var idxConvAmt = idx(["amount in base currency", "amount (account)", "amount"]);
+  var idxCategory = idx(["category"]);
+  var idxAccount = idx(["account"]);
 
   if (idxDate === -1 || idxDesc === -1 || idxConvAmt === -1) {
-    throw new Error(
-      "CSV headers not recognised. Expecting at least Date, Description, Amount in base currency."
-    );
+    throw new Error("CSV headers not recognised (need at least Date, Description, Amount).");
   }
 
   var txs = [];
@@ -614,48 +598,34 @@ function parsePocketSmithCsv(csvText) {
     var row = splitCsvLine(lines[i]);
     if (!row.length || row.every(function (c) { return !c.trim(); })) continue;
 
-    function cell(idx) {
-      return idx >= 0 && idx < row.length ? row[idx].trim() : "";
+    function cell(index) {
+      return index >= 0 && index < row.length ? row[index].trim() : "";
     }
 
     var rawDate = cell(idxDate);
     var description = cell(idxDesc);
-    var origAmtStr = cell(idxOrigAmt);
     var convAmtStr = cell(idxConvAmt);
-    var origCur = cell(idxOrigCur);
-    var convCur = cell(idxConvCur);
-    var account = cell(idxAccount);
     var categoryName = cell(idxCategory);
+    var account = cell(idxAccount);
 
-    var convAmt = parseNumber(convAmtStr);
-    var origAmt = parseNumber(origAmtStr);
-
-    // pocketSmith exports negative expenses already; we use converted as "amount"
-    var amount = isNaN(convAmt) ? 0 : convAmt;
-
+    var amount = parseNumber(convAmtStr);
     var isoDate = normaliseDate(rawDate);
-
     var categoryId = ensureCategoryFromCsv(categoryName);
 
     txs.push({
-      id: null, // filled later
+      id: null,
       date: isoDate,
       description: description,
       amount: amount,
-      originalAmount: origAmt,
-      originalCurrency: origCur || convCur,
-      convertedAmount: convAmt,
-      convertedCurrency: convCur || origCur,
-      account: account,
       categoryId: categoryId,
-      labels: [],
+      account: account,
+      labels: []
     });
   }
 
   return txs;
 }
 
-// very small CSV line splitter (handles quotes & commas)
 function splitCsvLine(line) {
   var result = [];
   var current = "";
@@ -683,17 +653,16 @@ function splitCsvLine(line) {
 }
 
 function parseNumber(str) {
-  if (!str) return NaN;
+  if (!str) return 0;
   return parseFloat(String(str).replace(/,/g, ""));
 }
 
 function normaliseDate(s) {
   if (!s) return "";
   s = s.trim();
-  // if already ISO-ish
+
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
 
-  // handle dd-mm-yy from your CSV (e.g. 31-10-25)
   var m = s.match(/^(\d{2})-(\d{2})-(\d{2})$/);
   if (m) {
     var d = m[1];
@@ -703,7 +672,6 @@ function normaliseDate(s) {
     return year + "-" + mo + "-" + d;
   }
 
-  // fallback: Date parse
   var dt = new Date(s);
   if (!isNaN(dt.getTime())) {
     var month = String(dt.getMonth() + 1).padStart(2, "0");
@@ -714,19 +682,16 @@ function normaliseDate(s) {
   return s;
 }
 
-// ensure a top-level category exists for CSV name, returns id
 function ensureCategoryFromCsv(name) {
   if (!name) return null;
   var trimmed = name.trim();
   if (!trimmed) return null;
 
-  // find by name anywhere
   var existing = state.categories.find(function (c) {
     return c.name === trimmed;
   });
   if (existing) return existing.id;
 
-  // create new top-level
   var type = inferCategoryType(trimmed, null);
   var id = trimmed;
   var cat = { id: id, name: trimmed, parentId: null, type: type };
@@ -734,7 +699,7 @@ function ensureCategoryFromCsv(name) {
   return id;
 }
 
-// ============== HELPERS ==============
+// ========== SHARED HELPERS ==========
 function getFilteredTransactions() {
   var mode = state.dateFilter.mode;
   var from = state.dateFilter.from;
@@ -770,10 +735,9 @@ function getCategoryName(categoryId) {
 }
 
 function formatAmount(amount) {
-  if (amount == null || isNaN(amount)) return "0.00";
-  return Number(amount).toLocaleString(undefined, {
+  return Number(amount || 0).toLocaleString(undefined, {
     minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    maximumFractionDigits: 2
   });
 }
 
@@ -785,7 +749,7 @@ function sumValues(obj) {
   return sum;
 }
 
-// Drag & drop for categorisation
+// drag & drop
 var draggedTransactionId = null;
 
 function handleTransactionDragStart(event) {
@@ -828,11 +792,13 @@ function handleCategoryDrop(event) {
   rerenderAll();
 }
 
-// Re-render dashboard + transactions
 function rerenderAll() {
   renderTransactionsTable();
   renderIncomeStatement();
 }
 
-// ============== BOOTSTRAP ==============
-document.addEventListener("DOMContentLoaded", init);
+// ========== BOOTSTRAP ==========
+document.addEventListener("DOMContentLoaded", function () {
+  console.log("DOMContentLoaded fired");
+  init();
+});
