@@ -512,3 +512,50 @@ body {
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.02);
 }
+.amount-negative {
+  color: #ff5c7a; /* red-ish */
+}
+
+.amount-positive {
+  color: #3fd086; /* green-ish */
+}
+
+.income-row.hidden {
+  display: none;
+}
+
+.tree-toggle {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  width: 16px;
+  margin-right: 4px;
+}
+
+/* triangle indicator */
+.tree-toggle::before {
+  content: "▾";
+  font-size: 10px;
+}
+
+.tree-toggle--collapsed::before {
+  content: "▸";
+}
+
+.tree-toggle--spacer {
+  cursor: default;
+}
+
+.income-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.income-table th,
+.income-table td {
+  padding: 4px 8px;
+}
+
+.income-cell-category {
+  white-space: nowrap;
+}
