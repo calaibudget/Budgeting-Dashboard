@@ -3,84 +3,74 @@
   <head>
     <meta charset="UTF-8" />
     <title>Budget Dashboard</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="stylesheet" href="src/css/styles.css" />
   </head>
-  <body class="app">
-    <!-- ================= HEADER ================= -->
-    <header class="app-header">
-      <div class="app-header__title">Budget Dashboard</div>
-      <div class="app-header__right">
-        <span class="app-header__label">Period:</span>
-        <select id="period-select">
-          <option value="1m">Last month</option>
-          <option value="3m">Last 3 months</option>
-          <option value="6m">Last 6 months</option>
-          <option value="ytd">Year to date</option>
-          <option value="custom">Custom range</option>
-        </select>
+  <body>
+    <div class="app-shell">
+      <!-- HEADER -->
+      <header class="app-header">
+        <div class="app-title">Budget Dashboard</div>
+        <nav class="tab-bar">
+          <button
+            class="tab-button"
+            data-tab-target="tab-dashboard"
+          >
+            Dashboard
+          </button>
+          <button
+            class="tab-button"
+            data-tab-target="tab-transactions"
+          >
+            Transactions
+          </button>
+          <button
+            class="tab-button"
+            data-tab-target="tab-categories"
+          >
+            Categories
+          </button>
+          <button class="tab-button" data-tab-target="tab-import">
+            Import
+          </button>
+        </nav>
+      </header>
 
-        <div id="custom-range" class="app-header__custom-range hidden">
-          <span class="app-header__label">From</span>
-          <input id="date-from" type="date" />
-          <span class="app-header__label">To</span>
-          <input id="date-to" type="date" />
-        </div>
-      </div>
-    </header>
-
-    <!-- ================= MAIN ================= -->
-    <main class="app-main">
-      <!-- Tabs -->
-      <div class="tabs">
-        <button
-          class="tab-button tab-button--active"
-          data-tab-target="dashboard"
-        >
-          Dashboard
-        </button>
-        <button class="tab-button" data-tab-target="transactions">
-          Transactions
-        </button>
-        <button class="tab-button" data-tab-target="categories">
-          Categories
-        </button>
-        <button class="tab-button" data-tab-target="import">
-          Import
-        </button>
-      </div>
-
-      <!-- ===== DASHBOARD TAB ===== -->
-      <section
-        class="tab-panel tab-panel--active"
-        data-tab="dashboard"
-        id="tab-dashboard"
-      >
-        <section class="card">
-          <h2 class="card__title">Income statement</h2>
-          <p class="card__subtitle">
-            Summary of income and expenses for the selected period.
-          </p>
-          <div id="income-statement">
-            <!-- Filled by app.js -->
-          </div>
-        </section>
-      </section>
-
-      <!-- ===== TRANSACTIONS TAB ===== -->
-      <section class="tab-panel" data-tab="transactions" id="tab-transactions">
-        <section class="card">
-          <div class="transactions-header">
-            <div class="transactions-header__title">Transactions</div>
-            <div class="transactions-header__controls">
-              <!-- space for future filters / actions -->
+      <!-- DASHBOARD TAB -->
+      <section id="tab-dashboard" class="tab-content">
+        <div class="panel">
+          <div class="period-bar">
+            <span>Period:</span>
+            <select id="period-select">
+              <option value="1m">Last month</option>
+              <option value="3m">Last 3 months</option>
+              <option value="6m">Last 6 months</option>
+              <option value="ytd">Year to date</option>
+              <option value="custom">Custom</option>
+            </select>
+            <div id="custom-range" class="hidden">
+              <input id="date-from" type="date" />
+              <input id="date-to" type="date" />
             </div>
           </div>
 
-          <table class="data-table">
+          <h2>Income statement</h2>
+          <p class="panel-subtitle">
+            Summary of income and expenses for the selected period.
+          </p>
+
+          <div id="income-statement"></div>
+        </div>
+      </section>
+
+      <!-- TRANSACTIONS TAB -->
+      <section id="tab-transactions" class="tab-content">
+        <div class="panel">
+          <div class="transactions-header">Transactions</div>
+
+          <table class="transactions-table">
             <thead>
               <tr>
-                <th></th>
+                <th class="tx-col-select"></th>
                 <th>Date</th>
                 <th>Description</th>
                 <th class="col-amount">Amount</th>
@@ -88,95 +78,100 @@
                 <th>Labels</th>
               </tr>
             </thead>
-            <tbody id="transactions-body">
-              <!-- Filled by app.js -->
-            </tbody>
+            <tbody id="transactions-body"></tbody>
           </table>
-        </section>
+        </div>
       </section>
 
-      <!-- ===== CATEGORIES TAB ===== -->
-      <section class="tab-panel" data-tab="categories" id="tab-categories">
-        <section class="card">
-          <h2 class="card__title">Categories</h2>
-          <p class="card__subtitle">
-            Visual tree of income and expense categories. Edit the structure via
-            the text editor on the right.
+      <!-- CATEGORIES TAB -->
+      <section id="tab-categories" class="tab-content">
+        <div class="panel">
+          <h2>Categories</h2>
+          <p class="panel-subtitle">
+            Visual tree of income and expense categories. Edit the structure
+            using the text editors.
           </p>
 
           <div class="categories-layout">
-            <!-- Left: trees -->
-            <div class="category-tree-card">
-              <h4>Income categories</h4>
-              <div
-                id="income-category-tree"
-                class="category-tree"
-              >
-                <!-- Filled by app.js -->
-              </div>
+            <!-- Trees -->
+            <div class="categories-column">
+              <h3>Income categories</h3>
+              <div id="income-tree" class="tree-container"></div>
 
-              <h4 style="margin-top: 12px;">Expense categories</h4>
-              <div
-                id="expense-category-tree"
-                class="category-tree"
-              >
-                <!-- Filled by app.js -->
-              </div>
+              <h3 class="mt-8">Expense categories</h3>
+              <div id="expense-tree" class="tree-container"></div>
             </div>
 
-            <!-- Right: editor -->
-            <div class="category-editor-card">
-              <h4>Categories editor</h4>
-              <p class="category-editor__hint">
-                Paste your category tree here, one per line. Use dashes for
-                levels (<code>no dash</code> = top level,
-                <code>-</code> = level 1, <code>--</code> = level 2, etc.).<br />
-                Income vs expense is inferred from the name
-                (e.g. “Salary”, “Allowance”, “Cashback” =&gt; Income; everything
-                else =&gt; Expense).
-              </p>
-              <textarea id="categories-editor"></textarea>
-              <button id="apply-categories" class="button-primary">
-                Update categories
-              </button>
+            <!-- Editors -->
+            <div class="categories-column">
+              <div class="categories-editor">
+                <h3>Categories editor</h3>
+                <small
+                  >Paste your category tree here, one line per category. Use
+                  dashes for levels (no dash = top level, - = level 1, -- =
+                  level 2, etc.). Put income categories on the left box and
+                  expense categories on the right box.</small
+                >
+
+                <label for="income-editor"><strong>Income</strong></label>
+                <textarea id="income-editor"></textarea>
+
+                <label for="expense-editor" class="mt-8"
+                  ><strong>Expenses</strong></label
+                >
+                <textarea id="expense-editor"></textarea>
+
+                <button
+                  id="update-categories"
+                  class="primary"
+                  type="button"
+                >
+                  Update categories
+                </button>
+              </div>
             </div>
           </div>
-        </section>
+        </div>
       </section>
 
-      <!-- ===== IMPORT TAB ===== -->
-      <section class="tab-panel" data-tab="import" id="tab-import">
-        <section class="card">
-          <h2 class="card__title">Import transactions</h2>
-          <p class="card__subtitle">
-            Upload a PocketSmith-style CSV export. You can append to, or replace
-            the existing transactions.
+      <!-- IMPORT TAB -->
+      <section id="tab-import" class="tab-content">
+        <div class="panel">
+          <h2>Import transactions</h2>
+          <p class="panel-subtitle">
+            Upload a PocketSmith CSV export. You can append or replace your
+            transactions.
           </p>
 
-          <div class="import-layout">
-            <div>
-              <label for="import-file">CSV file:</label>
-              <input id="import-file" type="file" accept=".csv,text/csv" />
+          <div class="import-body">
+            <div class="import-row">
+              <strong>CSV file:</strong>
+              <input id="import-file" type="file" accept=".csv" />
             </div>
-
-            <label>
-              <input
-                id="import-clear-existing"
-                type="checkbox"
-              />
-              Clear existing transactions before import
-            </label>
-
-            <div>
-              <button id="import-button" class="button-primary">
+            <div class="import-row">
+              <label>
+                <input
+                  id="import-clear-existing"
+                  type="checkbox"
+                  checked
+                />
+                Clear existing transactions before import
+              </label>
+            </div>
+            <div class="import-row">
+              <button id="import-button" class="primary" type="button">
                 Import CSV
               </button>
-              <div id="import-status"></div>
             </div>
+            <div
+              id="import-status"
+              class="import-row"
+              style="color: #b7c3e6"
+            ></div>
           </div>
-        </section>
+        </div>
       </section>
-    </main>
+    </div>
 
     <script src="app.js"></script>
   </body>
