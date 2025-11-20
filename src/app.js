@@ -28,7 +28,7 @@ var selectedTransactionIds = new Set();
 var txModalMode = "add"; // "add" | "duplicate"
 var txModalSourceTx = null;
 
-// number formatter with thousands separators
+// Number formatter with thousands separators and 2 decimals
 var amountFormatter = new Intl.NumberFormat("en-US", {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2
@@ -157,6 +157,7 @@ function init() {
 
   setupTransactionsUI();
   setupTransactionModal();
+  setupImportTab(); // NEW
 
   renderTransactionsTable();
   renderIncomeStatement();
@@ -164,7 +165,7 @@ function init() {
   refreshTransactionsFilterOptions();
 }
 
-// ---------- PERIOD FILTER (dashboard only) ----------
+// ---------- PERIOD FILTER (Dashboard only) ----------
 
 function setupPeriodFilter() {
   var select = document.getElementById("period-select");
@@ -204,14 +205,15 @@ function setupPeriodFilter() {
   select.value = state.dateFilter.mode;
 }
 
-// show period selector only on Dashboard tab
+// Show period selector only on Dashboard tab
 function setupTabHeaderVisibility() {
   var dashRadio = document.getElementById("tab-radio-dashboard");
   var txRadio = document.getElementById("tab-radio-transactions");
   var catRadio = document.getElementById("tab-radio-categories");
+  var importRadio = document.getElementById("tab-radio-import"); // may not exist yet
   var filters = document.querySelector(".top-bar__filters");
 
-  if (!dashRadio || !txRadio || !catRadio || !filters) return;
+  if (!dashRadio || !filters) return;
 
   function updateFiltersVisibility() {
     if (dashRadio.checked) {
@@ -222,8 +224,9 @@ function setupTabHeaderVisibility() {
   }
 
   dashRadio.addEventListener("change", updateFiltersVisibility);
-  txRadio.addEventListener("change", updateFiltersVisibility);
-  catRadio.addEventListener("change", updateFiltersVisibility);
+  if (txRadio) txRadio.addEventListener("change", updateFiltersVisibility);
+  if (catRadio) catRadio.addEventListener("change", updateFiltersVisibility);
+  if (importRadio) importRadio.addEventListener("change", updateFiltersVisibility);
 
   updateFiltersVisibility();
 }
@@ -279,7 +282,7 @@ function setupCategoryEditorModal() {
   });
 }
 
-// state.categories -> dashed text in tree order
+// state.categories -> dashed text (tree order)
 function generateCategoriesTextFromState() {
   if (!state.categories.length) return "";
 
@@ -1017,7 +1020,7 @@ function getTransactionsForTable() {
   return list;
 }
 
-// ---------- INCOME STATEMENT (dashboard) ----------
+// ---------- INCOME STATEMENT (Dashboard) ----------
 
 function renderIncomeStatement() {
   var container = document.getElementById("income-statement");
@@ -1143,6 +1146,207 @@ function getFilteredTransactionsDashboard() {
     var d = new Date(tx.date);
     return d >= start && d <= end;
   });
+}
+
+// ---------- IMPORT TAB (PocketSmith CSV) ----------
+
+function setupImportTab() {
+  var fileInput = document.getElementById("import-file");
+  var clearCheckbox = document.getElementById("import-clear-existing");
+  var importButton = document.getElementById("import-button");
+  var statusEl = document.getElementById("import-status");
+
+  if (!fileInput || !importButton) return; // Import tab not present
+
+  function setStatus(msg) {
+    if (statusEl) statusEl.textContent = msg;
+  }
+
+  importButton.addEventListener("click", function () {
+    var file = fileInput.files && fileInput.files[0];
+    if (!file) {
+      alert("Please choose a CSV file first.");
+      return;
+    }
+
+    var reader = new FileReader();
+    reader.onload = function (evt) {
+      try {
+        var text = evt.target.result || "";
+        var rows = parseCsv(text);
+        if (!rows.length) {
+          setStatus("No rows found in file.");
+          return;
+        }
+
+        if (clearCheckbox && clearCheckbox.checked) {
+          state.transactions = [];
+          selectedTransactionIds.clear();
+        }
+
+        var importedCount = importPocketSmithCsv(rows);
+
+        refreshTransactionsFilterOptions();
+        renderTransactionsTable();
+        renderIncomeStatement();
+
+        setStatus("Imported " + importedCount + " transactions from CSV.");
+        alert("Imported " + importedCount + " transactions.");
+      } catch (e) {
+        console.error(e);
+        alert("Error while importing CSV: " + (e.message || e));
+        setStatus("Import failed.");
+      }
+    };
+
+    reader.onerror = function () {
+      alert("Failed to read file.");
+    };
+
+    reader.readAsText(file);
+  });
+}
+
+// Convert parsed CSV rows into our transaction objects.
+// Assumes PocketSmith-like headers:
+//
+// Date, Description, Amount, Currency,
+// Amount in base currency, Base currency,
+// Transaction Type, Account, Closing Balance, Category
+//
+function importPocketSmithCsv(rows) {
+  if (!rows || !rows.length) return 0;
+
+  // Normalize header names used
+  var first = rows[0];
+  var hasDate = "Date" in first;
+  if (!hasDate) {
+    throw new Error("CSV format not recognised (no 'Date' column).");
+  }
+
+  var nextId =
+    state.transactions.reduce(function (max, tx) {
+      return Math.max(max, tx.id);
+    }, 0) + 1;
+
+  var imported = 0;
+
+  rows.forEach(function (row) {
+    var rawDate = (row["Date"] || "").trim();
+    var desc = (row["Description"] || "").trim();
+    var amtStr = (row["Amount in base currency"] || row["Amount"] || "").trim();
+    var baseCur = (row["Base currency"] || row["Currency"] || "AED").trim();
+    var origAmtStr = (row["Amount"] || amtStr || "").trim();
+    var origCur = (row["Currency"] || baseCur || "AED").trim();
+    var account = (row["Account"] || "").trim();
+    var csvCategory = (row["Category"] || "").trim();
+
+    if (!rawDate && !desc && !amtStr) return; // skip empty lines
+
+    var dateIso = convertDatePocketSmith(rawDate);
+
+    var convertedAmount = parseFloat(amtStr || "0");
+    if (isNaN(convertedAmount)) convertedAmount = 0;
+
+    var originalAmount = parseFloat(origAmtStr || amtStr || "0");
+    if (isNaN(originalAmount)) originalAmount = convertedAmount;
+
+    var labels = [];
+    if (csvCategory) labels.push(csvCategory);
+
+    var tx = {
+      id: nextId++,
+      date: dateIso,
+      description: desc,
+      originalAmount: originalAmount,
+      originalCurrency: origCur || baseCur || "AED",
+      convertedAmount: convertedAmount,
+      convertedCurrency: baseCur || origCur || "AED",
+      categoryId: null, // let you recategorise in the UI
+      account: account || "",
+      labels: labels
+    };
+
+    state.transactions.push(tx);
+    imported++;
+  });
+
+  return imported;
+}
+
+// PocketSmith date format: "31-10-25" (dd-mm-yy)
+function convertDatePocketSmith(raw) {
+  if (!raw) return new Date().toISOString().slice(0, 10);
+
+  var parts = raw.split("-");
+  if (parts.length !== 3) {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  var day = parts[0];
+  var month = parts[1];
+  var yearPart = parts[2];
+
+  var y = parseInt(yearPart, 10);
+  if (isNaN(y)) y = 25;
+  var fullYear = y < 50 ? 2000 + y : 1900 + y;
+
+  function pad2(v) {
+    return v.toString().padStart(2, "0");
+  }
+
+  return fullYear + "-" + pad2(month) + "-" + pad2(day);
+}
+
+// Basic CSV parser supporting quoted fields.
+// Returns array of objects keyed by header row.
+function parseCsv(text) {
+  var lines = text.split(/\r?\n/).filter(function (l) {
+    return l.trim() !== "";
+  });
+  if (!lines.length) return [];
+
+  var header = splitCsvLine(lines[0]);
+  var rows = [];
+
+  for (var i = 1; i < lines.length; i++) {
+    var line = lines[i];
+    if (!line.trim()) continue;
+    var cols = splitCsvLine(line);
+    var obj = {};
+    for (var j = 0; j < header.length; j++) {
+      obj[header[j]] = cols[j] !== undefined ? cols[j] : "";
+    }
+    rows.push(obj);
+  }
+  return rows;
+}
+
+function splitCsvLine(line) {
+  var result = [];
+  var cur = "";
+  var inQuotes = false;
+
+  for (var i = 0; i < line.length; i++) {
+    var ch = line[i];
+
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        // Escaped quote
+        cur += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (ch === "," && !inQuotes) {
+      result.push(cur);
+      cur = "";
+    } else {
+      cur += ch;
+    }
+  }
+  result.push(cur);
+  return result;
 }
 
 // ---------- HELPERS ----------
