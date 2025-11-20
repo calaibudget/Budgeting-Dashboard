@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <title>Budget Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Adjust path if your css is elsewhere -->
   <link rel="stylesheet" href="src/css/styles.css" />
 </head>
 <body>
@@ -11,33 +12,11 @@
     <!-- TOP BAR -->
     <header class="top-bar">
       <h1>Budget Dashboard</h1>
-
-      <div class="top-bar__filters">
-        <span>Period:</span>
-        <select id="period-select">
-          <option value="1m">Last 1 month</option>
-          <option value="3m">Last 3 months</option>
-          <option value="6m" selected>Last 6 months</option>
-          <option value="ytd">Year to date</option>
-          <option value="custom">Custom</option>
-        </select>
-
-        <div id="custom-range" class="hidden">
-          <label>
-            From:
-            <input type="date" id="date-from" />
-          </label>
-          <label>
-            To:
-            <input type="date" id="date-to" />
-          </label>
-        </div>
-      </div>
     </header>
 
     <!-- TABS + PANELS -->
     <div class="tabs-wrapper">
-      <!-- radios (must come BEFORE .tabs and panels) -->
+      <!-- Radios (must come before .tabs and panels) -->
       <input
         type="radio"
         class="tab-radio"
@@ -76,6 +55,29 @@
       <div class="tab-panel tab-panel-dashboard">
         <div class="layout layout-dashboard">
           <div class="panel">
+            <!-- PERIOD FILTER (only here) -->
+            <div class="dashboard-filters">
+              <span>Period:</span>
+              <select id="period-select">
+                <option value="1m">Last 1 month</option>
+                <option value="3m">Last 3 months</option>
+                <option value="6m" selected>Last 6 months</option>
+                <option value="ytd">Year to date</option>
+                <option value="custom">Custom</option>
+              </select>
+
+              <div id="custom-range" class="hidden">
+                <label>
+                  From:
+                  <input type="date" id="date-from" />
+                </label>
+                <label>
+                  To:
+                  <input type="date" id="date-to" />
+                </label>
+              </div>
+            </div>
+
             <h2>Income statement</h2>
             <p class="text-muted">
               Summary of income and expenses for the selected period.
@@ -93,7 +95,7 @@
               <h2>Transactions</h2>
             </div>
 
-            <!-- Filters -->
+            <!-- Filters (UI only for now) -->
             <div class="transactions-filters">
               <input
                 id="tx-search"
@@ -132,20 +134,14 @@
               </button>
             </div>
 
-            <!-- Bulk actions (hooked up later) -->
+            <!-- Bulk actions (hook-ups later if you want) -->
             <div class="transactions-bulk">
               <div class="bulk-group">
                 <span class="bulk-label">Set category:</span>
-                <select
-                  id="bulk-category-select"
-                  class="filter-select"
-                >
+                <select id="bulk-category-select" class="filter-select">
                   <option value="none">Select category</option>
                 </select>
-                <button
-                  id="apply-bulk-category"
-                  class="secondary-button"
-                >
+                <button id="apply-bulk-category" class="secondary-button">
                   Apply
                 </button>
               </div>
@@ -164,7 +160,7 @@
               </div>
             </div>
 
-            <!-- Transactions table (simple version matching app.js) -->
+            <!-- Transactions table (wired to app.js) -->
             <table class="transactions-table">
               <thead>
                 <tr>
@@ -188,8 +184,7 @@
           <div class="panel">
             <h2>Categories</h2>
             <p class="text-muted">
-              Drag transactions onto leaf categories (in the Dashboard /
-              Transactions tab) to recategorise them.
+              Drag transactions onto leaf categories to recategorise them.
             </p>
             <div id="category-tree"></div>
           </div>
@@ -198,9 +193,10 @@
           <div class="panel">
             <h2>Categories editor</h2>
             <p class="text-muted">
-              Use dashes for levels (no dash = level 0, one dash = level 1,
-              etc.).
+              Paste your category tree here, one per line. Use dashes for levels
+              (no dash = top level, <code>-</code> = level 1, <code>--</code> = level 2, etc.).
             </p>
+
             <pre class="placeholder">
 Income
 -Base Salary
@@ -209,6 +205,9 @@ Food &amp; Drinks
 -Restaurants
 --Lunch
 --Dinner
+-Food Delivery
+Life &amp; Entertainment
+-Gifts
             </pre>
 
             <textarea
@@ -231,22 +230,22 @@ Food &amp; Drinks
           <div class="panel">
             <h2>Import transactions</h2>
             <p class="text-muted">
-              Upload a PocketSmith CSV export. Logic will be wired in the next
-              step.
+              Upload a PocketSmith CSV export. You can append to or replace the
+              existing transactions.
             </p>
 
-            <div style="display:flex; flex-direction:column; gap:0.5rem; margin-top:0.5rem;">
+            <div class="import-form">
               <label>
                 CSV file:
                 <input type="file" id="import-file" accept=".csv" />
               </label>
 
-              <label>
+              <label class="import-clear-row">
                 <input type="checkbox" id="import-clear-existing" />
                 Clear existing transactions before import
               </label>
 
-              <div class="editor-actions" style="justify-content:flex-start;">
+              <div class="editor-actions import-actions">
                 <button id="import-button" class="primary-button">
                   Import CSV
                 </button>
