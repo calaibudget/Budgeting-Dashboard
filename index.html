@@ -1,345 +1,443 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <title>Budget Dashboard</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <!-- Dark theme / card layout -->
-  <link rel="stylesheet" href="src/css/styles.css" />
-</head>
-<body>
-  <div class="app">
-    <!-- TOP BAR -->
-    <header class="top-bar">
-      <div class="top-bar__title">Budget Dashboard</div>
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+}
 
-      <!-- Tabs (radio-based, styled by CSS) -->
-      <div class="top-bar__tabs">
-        <input type="radio" name="main-tabs" id="tab-radio-dashboard" checked />
-        <label for="tab-radio-dashboard" class="tab-label">Dashboard</label>
+body {
+  background: #0f172a;
+  color: #e5e7eb;
+}
 
-        <input type="radio" name="main-tabs" id="tab-radio-transactions" />
-        <label for="tab-radio-transactions" class="tab-label">Transactions</label>
+#app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
 
-        <input type="radio" name="main-tabs" id="tab-radio-categories" />
-        <label for="tab-radio-categories" class="tab-label">Categories</label>
+/* Top bar */
 
-        <input type="radio" name="main-tabs" id="tab-radio-import" />
-        <label for="tab-radio-import" class="tab-label">Import</label>
-      </div>
+.top-bar {
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid #1f2937;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
 
-      <!-- Period selector (JS hides it on non-dashboard tabs) -->
-      <div class="top-bar__filters">
-        <span class="top-bar__filters-label">Period:</span>
-        <select id="period-select" class="filter-select">
-          <option value="1m">Last 1 month</option>
-          <option value="3m">Last 3 months</option>
-          <option value="6m" selected>Last 6 months</option>
-          <option value="ytd">Year to date</option>
-          <option value="custom">Custom</option>
-        </select>
+.top-bar h1 {
+  font-size: 1.4rem;
+  font-weight: 600;
+}
 
-        <div id="custom-range" class="custom-range hidden">
-          <label>
-            From:
-            <input type="date" id="date-from" />
-          </label>
-          <label>
-            To:
-            <input type="date" id="date-to" />
-          </label>
-        </div>
-      </div>
-    </header>
+.top-bar__filters {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  font-size: 0.9rem;
+}
 
-    <!-- MAIN CONTENT -->
-    <main class="main-layout">
-      <!-- DASHBOARD TAB -->
-      <section id="tab-dashboard" class="tab-panel">
-        <div class="card">
-          <h2>Income statement</h2>
-          <p class="card-subtitle">
-            Summary of income and expenses for the selected period.
-          </p>
-          <div id="income-statement" class="income-statement">
-            <!-- Filled by JS -->
-          </div>
-        </div>
-      </section>
+.top-bar select,
+.top-bar input[type="date"] {
+  background: #020617;
+  color: #e5e7eb;
+  border: 1px solid #374151;
+  border-radius: 0.375rem;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.85rem;
+}
 
-      <!-- TRANSACTIONS TAB -->
-      <section id="tab-transactions" class="tab-panel">
-        <div class="card">
-          <h2>Transactions</h2>
+.hidden {
+  display: none;
+}
 
-          <!-- Filters row -->
-          <div class="transactions-filters">
-            <div class="transactions-filters__row">
-              <label>
-                Search:
-                <input
-                  type="text"
-                  id="tx-search"
-                  placeholder="Description, account, category..."
-                />
-              </label>
+/* Tabs with radios */
 
-              <label>
-                Account:
-                <select id="tx-filter-account" class="filter-select">
-                  <option value="all">All accounts</option>
-                </select>
-              </label>
+.tabs-wrapper {
+  display: flex;
+  flex-direction: column;
+}
 
-              <label>
-                Category:
-                <select id="tx-filter-category" class="filter-select">
-                  <option value="all">All categories</option>
-                </select>
-              </label>
+/* hide radios */
+.tab-radio {
+  display: none;
+}
 
-              <label>
-                Labels:
-                <input
-                  type="text"
-                  id="tx-filter-label"
-                  placeholder="Search labels"
-                />
-              </label>
-            </div>
+.tabs {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0 1.5rem 0.75rem;
+  border-bottom: 1px solid #1f2937;
+}
 
-            <div class="transactions-filters__row">
-              <label>
-                Date:
-                <select id="tx-filter-date-mode" class="filter-select">
-                  <option value="any">Any</option>
-                  <option value="on">On</option>
-                  <option value="before">Before</option>
-                  <option value="after">After</option>
-                  <option value="between">Between</option>
-                </select>
-              </label>
+.tab-button {
+  background: #020617;
+  border-radius: 9999px;
+  border: 1px solid #1f2937;
+  padding: 0.35rem 0.9rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+  color: #e5e7eb;
+}
 
-              <label>
-                From:
-                <input type="date" id="tx-date-from" />
-              </label>
+/* active tab */
+#tab-radio-dashboard:checked ~ .tabs label[for="tab-radio-dashboard"],
+#tab-radio-transactions:checked ~ .tabs label[for="tab-radio-transactions"],
+#tab-radio-categories:checked ~ .tabs label[for="tab-radio-categories"],
+#tab-radio-import:checked ~ .tabs label[for="tab-radio-import"] {
+  background: #111827;
+  border-color: #38bdf8;
+}
 
-              <label>
-                To:
-                <input type="date" id="tx-date-to" />
-              </label>
+/* Panels */
 
-              <div class="transactions-filters__actions">
-                <button id="add-transaction" class="primary-button">
-                  Add transaction
-                </button>
-                <button id="delete-selected" class="secondary-button">
-                  Delete selected
-                </button>
-              </div>
-            </div>
-          </div>
+.tab-panel {
+  display: none;
+}
 
-          <!-- Bulk actions -->
-          <div class="transactions-bulk">
-            <div class="transactions-bulk__group">
-              <label>
-                Set category:
-                <select id="bulk-category-select" class="filter-select">
-                  <option value="none">Select category</option>
-                </select>
-              </label>
-              <button id="apply-bulk-category" class="secondary-button">
-                Apply to selected
-              </button>
-            </div>
+#tab-radio-dashboard:checked ~ .tab-panel-dashboard {
+  display: block;
+}
 
-            <div class="transactions-bulk__group">
-              <label>
-                Add label:
-                <input
-                  type="text"
-                  id="bulk-label-input"
-                  placeholder="e.g. Work, Trip"
-                />
-              </label>
-              <button id="apply-bulk-label" class="secondary-button">
-                Apply to selected
-              </button>
-            </div>
-          </div>
+#tab-radio-transactions:checked ~ .tab-panel-transactions {
+  display: block;
+}
 
-          <!-- Table -->
-          <div class="table-wrapper">
-            <table class="transactions-table">
-              <thead>
-                <tr>
-                  <th></th>
-                  <th id="tx-header-date" class="sortable">Date</th>
-                  <th>Description</th>
-                  <th>Original amount</th>
-                  <th>Converted amount</th>
-                  <th>Category</th>
-                  <th>Account</th>
-                  <th>Labels</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody id="transactions-body">
-                <!-- Filled by JS -->
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
+#tab-radio-categories:checked ~ .tab-panel-categories {
+  display: block;
+}
 
-      <!-- CATEGORIES TAB -->
-      <section id="tab-categories" class="tab-panel">
-        <div class="card">
-          <div class="card-header-row">
-            <h2>Categories</h2>
-            <button id="open-category-editor" class="secondary-button">
-              Edit categories
-            </button>
-          </div>
-          <p class="card-subtitle">
-            Collapsible category tree. Edit the structure via the popup editor.
-          </p>
+#tab-radio-import:checked ~ .tab-panel-import {
+  display: block;
+}
 
-          <div id="category-tree-tab" class="category-tree">
-            <!-- Filled by JS -->
-          </div>
-        </div>
-      </section>
+/* Layouts & panels */
 
-      <!-- IMPORT TAB -->
-      <section id="tab-import" class="tab-panel">
-        <div class="card">
-          <h2>Import transactions</h2>
-          <p class="card-subtitle">
-            Upload a PocketSmith CSV export. You can append to or replace the
-            existing transactions.
-          </p>
+.layout {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem 1.5rem 1.5rem;
+}
 
-          <div class="import-row">
-            <label>
-              CSV file:
-              <input type="file" id="import-file" accept=".csv" />
-            </label>
-          </div>
+/* Dashboard: single summary panel */
+.layout-dashboard {
+  grid-template-columns: minmax(0, 1fr);
+}
 
-          <div class="import-row">
-            <label>
-              <input type="checkbox" id="import-clear-existing" />
-              Clear existing transactions before import
-            </label>
-          </div>
+/* Transactions tab: single wide panel */
+.layout-transactions {
+  grid-template-columns: minmax(0, 1fr);
+}
 
-          <div class="import-row">
-            <button id="import-button" class="primary-button">
-              Import CSV
-            </button>
-          </div>
+/* Categories tab: tree + edit panel */
+.layout-categories {
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1.2fr);
+}
 
-          <div id="import-status" class="import-status"></div>
-        </div>
-      </section>
-    </main>
-  </div>
+.panel {
+  background: #020617;
+  border-radius: 0.75rem;
+  border: 1px solid #1f2937;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  min-height: 200px;
+}
 
-  <!-- CATEGORY EDITOR MODAL -->
-  <div id="category-editor-modal" class="modal hidden">
-    <div class="modal-backdrop"></div>
-    <div class="modal-content">
-      <h3>Edit categories</h3>
-      <p class="modal-description">
-        Use dashes to indicate levels. Example:<br />
-        <code>Income</code><br />
-        <code>-Base Salary</code><br />
-        <code>-Performance Bonus</code><br />
-        <code>Food &amp; Drinks</code><br />
-        <code>-Restaurants</code><br />
-        <code>--Lunch</code>
-      </p>
-      <textarea
-        id="categories-editor-modal"
-        rows="16"
-        class="modal-textarea"
-      ></textarea>
+.panel h2,
+.panel h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+}
 
-      <div class="modal-actions">
-        <button id="cancel-categories" class="secondary-button">Cancel</button>
-        <button id="apply-categories" class="primary-button">
-          Update categories
-        </button>
-      </div>
-    </div>
-  </div>
+/* panel header row */
 
-  <!-- TRANSACTION EDITOR MODAL -->
-  <div id="transaction-editor-modal" class="modal hidden">
-    <div class="modal-backdrop"></div>
-    <div class="modal-content">
-      <h3 id="tx-modal-title">Add transaction</h3>
+.panel-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
 
-      <div class="modal-grid">
-        <label>
-          Date
-          <input type="date" id="tx-modal-date" />
-        </label>
+.panel-actions {
+  display: flex;
+  gap: 0.5rem;
+}
 
-        <label>
-          Description
-          <input type="text" id="tx-modal-description" />
-        </label>
+/* Transactions filters & bulk actions */
 
-        <label>
-          Original amount
-          <input type="number" step="0.01" id="tx-modal-original-amount" />
-        </label>
+.transactions-bulk {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+  align-items: center;
+}
 
-        <label>
-          Original currency
-          <input type="text" id="tx-modal-original-currency" value="AED" />
-        </label>
+.bulk-group {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+}
 
-        <label>
-          Converted amount
-          <input type="number" step="0.01" id="tx-modal-converted-amount" />
-        </label>
+.bulk-label {
+  color: #9ca3af;
+}
 
-        <label>
-          Converted currency
-          <input type="text" id="tx-modal-converted-currency" value="AED" />
-        </label>
+.bulk-input {
+  background: #020617;
+  border-radius: 0.375rem;
+  border: 1px solid #374151;
+  color: #e5e7eb;
+  padding: 0.2rem 0.45rem;
+  font-size: 0.8rem;
+}
 
-        <label>
-          Account
-          <input type="text" id="tx-modal-account" />
-        </label>
+.transactions-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  align-items: center;
+}
 
-        <label>
-          Category
-          <select id="tx-modal-category" class="filter-select">
-            <!-- Filled by JS -->
-          </select>
-        </label>
+.filter-input,
+.filter-select {
+  background: #020617;
+  border-radius: 0.375rem;
+  border: 1px solid #374151;
+  color: #e5e7eb;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.8rem;
+}
 
-        <label class="modal-grid--full">
-          Labels (comma separated)
-          <input type="text" id="tx-modal-labels" />
-        </label>
-      </div>
+/* Transactions table */
 
-      <div class="modal-actions">
-        <button id="tx-modal-cancel" class="secondary-button">Cancel</button>
-        <button id="tx-modal-save" class="primary-button">Save</button>
-      </div>
-    </div>
-  </div>
+.transactions-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
 
-  <!-- JS -->
-  <script src="app.js"></script>
-</body>
-</html>
+.transactions-table thead {
+  background: #020617;
+  border-bottom: 1px solid #1f2937;
+}
+
+.transactions-table th,
+.transactions-table td {
+  padding: 0.45rem 0.4rem;
+  text-align: left;
+}
+
+.transactions-table tbody tr:nth-child(even) {
+  background: #020617;
+}
+
+.transactions-table tbody tr:nth-child(odd) {
+  background: #020617cc;
+}
+
+.transactions-table tbody tr {
+  border-bottom: 1px solid #111827;
+}
+
+.tx-col-select {
+  width: 1.75rem;
+}
+
+.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+/* simple table button */
+
+.table-link-button {
+  background: none;
+  border: none;
+  color: #38bdf8;
+  font-size: 0.8rem;
+  cursor: pointer;
+  padding: 0;
+}
+
+.table-link-button:hover {
+  text-decoration: underline;
+}
+
+/* Category tree */
+
+#category-tree {
+  font-size: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding-top: 0.25rem;
+}
+
+/* match app.js .category-node structure */
+.category-node {
+  display: flex;
+  align-items: center;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.5rem;
+  border: 1px solid transparent;
+  background: #020617;
+}
+
+.category-node.leaf {
+  border-color: #334155;
+  margin-top: 0.3rem;
+}
+
+.category-node:hover {
+  border-color: #475569;
+  background: #020617ee;
+}
+
+.category-node__label {
+  font-weight: 500;
+}
+
+.category-node__path {
+  margin-left: auto;
+  font-size: 0.7rem;
+  color: #9ca3af;
+}
+
+/* Income statement */
+
+#income-statement {
+  font-size: 0.85rem;
+  margin-bottom: 1rem;
+}
+
+.income-group {
+  margin-bottom: 0.5rem;
+}
+
+.income-group__title {
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.income-line {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.15rem 0;
+}
+
+.income-line__label {
+  color: #9ca3af;
+}
+
+.income-line__value {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Categories editor textarea */
+
+.categories-textarea {
+  width: 100%;
+  min-height: 220px;
+  margin-top: 0.5rem;
+  background: #020617;
+  border: 1px solid #1f2937;
+  border-radius: 0.75rem;
+  color: #e5e7eb;
+  padding: 0.75rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+  font-size: 0.85rem;
+  white-space: pre;
+}
+
+.editor-actions {
+  margin-top: 0.75rem;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+/* Buttons */
+
+.primary-button {
+  background: #38bdf8;
+  border: none;
+  border-radius: 9999px;
+  padding: 0.4rem 1rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+  color: #020617;
+  font-weight: 500;
+}
+
+.primary-button:hover {
+  background: #0ea5e9;
+}
+
+.secondary-button {
+  background: #020617;
+  border: 1px solid #4b5563;
+  border-radius: 9999px;
+  padding: 0.4rem 1rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+  color: #e5e7eb;
+}
+
+.secondary-button:hover {
+  background: #111827;
+}
+
+/* Modal (kept for future use) */
+
+.modal {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 40;
+}
+
+.modal.hidden {
+  display: none;
+}
+
+.modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.8);
+}
+
+.modal-dialog {
+  position: relative;
+  max-width: 720px;
+  width: 100%;
+  max-height: 90vh;
+  background: #020617;
+  border-radius: 0.75rem;
+  border: 1px solid #1f2937;
+  padding: 1rem 1.25rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  z-index: 50;
+}
+
+/* Small text helpers */
+
+.text-muted {
+  font-size: 0.8rem;
+  color: #9ca3af;
+}
+
+.placeholder {
+  font-size: 0.8rem;
+  color: #6b7280;
+}
