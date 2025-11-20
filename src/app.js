@@ -1,41 +1,17 @@
 console.log("App script loaded");
 
-// ---------- GLOBAL STATE ----------
-
+// ===== STATE =====
 var state = {
   transactions: [],
   categories: [],
   dateFilter: {
-    mode: "6m",
-    from: null,
-    to: null
-  },
-  txFilter: {
-    text: "",
-    account: "all",
-    categoryId: "all",
-    labelText: "",
-    dateMode: "any",
+    mode: "6m", // default so sample data shows
     from: null,
     to: null,
-    sortByDate: "desc"
-  }
+  },
 };
 
-var collapsedCategoryIds = new Set();
-var selectedTransactionIds = new Set();
-
-var txModalMode = "add"; // "add" | "duplicate"
-var txModalSourceTx = null;
-
-// Number formatter with thousands separators and 2 decimals
-var amountFormatter = new Intl.NumberFormat("en-US", {
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2
-});
-
-// ---------- SAMPLE DATA ----------
-
+// ===== SAMPLE DATA =====
 function loadSampleData() {
   console.log("Loading sample data...");
 
@@ -45,52 +21,52 @@ function loadSampleData() {
       id: "Income > Base Salary",
       name: "Base Salary",
       parentId: "Income",
-      type: "Income"
+      type: "Income",
     },
     {
       id: "Income > Performance Bonus",
       name: "Performance Bonus",
       parentId: "Income",
-      type: "Income"
+      type: "Income",
     },
 
     {
       id: "Food & Drinks",
       name: "Food & Drinks",
       parentId: null,
-      type: "Expense"
+      type: "Expense",
     },
     {
       id: "Food & Drinks > Groceries",
       name: "Groceries",
       parentId: "Food & Drinks",
-      type: "Expense"
+      type: "Expense",
     },
     {
       id: "Food & Drinks > Restaurants",
       name: "Restaurants",
       parentId: "Food & Drinks",
-      type: "Expense"
+      type: "Expense",
     },
     {
       id: "Food & Drinks > Food Delivery",
       name: "Food Delivery",
       parentId: "Food & Drinks",
-      type: "Expense"
+      type: "Expense",
     },
 
     {
       id: "Life & Entertainment",
       name: "Life & Entertainment",
       parentId: null,
-      type: "Expense"
+      type: "Expense",
     },
     {
       id: "Life & Entertainment > Gifts",
       name: "Gifts",
       parentId: "Life & Entertainment",
-      type: "Expense"
-    }
+      type: "Expense",
+    },
   ];
 
   state.transactions = [
@@ -98,167 +74,71 @@ function loadSampleData() {
       id: 1,
       date: "2025-10-01",
       description: "September Salary",
-      originalAmount: 16000,
-      originalCurrency: "AED",
-      convertedAmount: 16000,
-      convertedCurrency: "AED",
+      amount: 16000,
       categoryId: "Income > Base Salary",
       account: "Salary Account",
-      labels: ["Work"]
+      labels: ["Work"],
     },
     {
       id: 2,
       date: "2025-10-03",
       description: "Dinner out",
-      originalAmount: -210,
-      originalCurrency: "AED",
-      convertedAmount: -210,
-      convertedCurrency: "AED",
+      amount: -210,
       categoryId: "Food & Drinks > Restaurants",
       account: "Current Account",
-      labels: ["Food"]
+      labels: ["Food"],
     },
     {
       id: 3,
       date: "2025-10-04",
       description: "Food delivery",
-      originalAmount: -95,
-      originalCurrency: "AED",
-      convertedAmount: -95,
-      convertedCurrency: "AED",
+      amount: -95,
       categoryId: "Food & Drinks > Food Delivery",
       account: "Current Account",
-      labels: ["Food", "Delivery"]
+      labels: ["Food", "Delivery"],
     },
     {
       id: 4,
       date: "2025-09-29",
       description: "Gift for friend",
-      originalAmount: -150,
-      originalCurrency: "AED",
-      convertedAmount: -150,
-      convertedCurrency: "AED",
+      amount: -150,
       categoryId: "Life & Entertainment > Gifts",
       account: "Current Account",
-      labels: ["Gift"]
-    }
+      labels: ["Gift"],
+    },
   ];
 }
 
-// ---------- INIT ----------
-
+// ===== INIT =====
 function init() {
   console.log("Initialising app...");
   loadSampleData();
-
   setupPeriodFilter();
-  setupCategoryEditorModal();
-  setupTabHeaderVisibility();
-
-  setupTransactionsUI();
-  setupTransactionModal();
-  setupImportTab(); // NEW
-
+  setupCategoryEditor();
+  setupImport();          // <— NEW
+  renderCategoryTree();
   renderTransactionsTable();
   renderIncomeStatement();
-  renderAllCategoryTrees();
-  refreshTransactionsFilterOptions();
 }
 
-// ---------- PERIOD FILTER (Dashboard only) ----------
+document.addEventListener("DOMContentLoaded", init);
 
-function setupPeriodFilter() {
-  var select = document.getElementById("period-select");
-  var customRange = document.getElementById("custom-range");
-  var fromInput = document.getElementById("date-from");
-  var toInput = document.getElementById("date-to");
-
-  if (!select) return;
-
-  select.addEventListener("change", function () {
-    state.dateFilter.mode = select.value;
-
-    if (select.value === "custom") {
-      customRange.classList.remove("hidden");
-    } else {
-      customRange.classList.add("hidden");
-      state.dateFilter.from = null;
-      state.dateFilter.to = null;
-      renderIncomeStatement();
-    }
-  });
-
-  if (fromInput) {
-    fromInput.addEventListener("change", function () {
-      state.dateFilter.from = fromInput.value || null;
-      renderIncomeStatement();
-    });
-  }
-
-  if (toInput) {
-    toInput.addEventListener("change", function () {
-      state.dateFilter.to = toInput.value || null;
-      renderIncomeStatement();
-    });
-  }
-
-  select.value = state.dateFilter.mode;
-}
-
-// Show period selector only on Dashboard tab
-function setupTabHeaderVisibility() {
-  var dashRadio = document.getElementById("tab-radio-dashboard");
-  var txRadio = document.getElementById("tab-radio-transactions");
-  var catRadio = document.getElementById("tab-radio-categories");
-  var importRadio = document.getElementById("tab-radio-import"); // may not exist yet
-  var filters = document.querySelector(".top-bar__filters");
-
-  if (!dashRadio || !filters) return;
-
-  function updateFiltersVisibility() {
-    if (dashRadio.checked) {
-      filters.style.display = "flex";
-    } else {
-      filters.style.display = "none";
-    }
-  }
-
-  dashRadio.addEventListener("change", updateFiltersVisibility);
-  if (txRadio) txRadio.addEventListener("change", updateFiltersVisibility);
-  if (catRadio) catRadio.addEventListener("change", updateFiltersVisibility);
-  if (importRadio) importRadio.addEventListener("change", updateFiltersVisibility);
-
-  updateFiltersVisibility();
-}
-
-// ---------- CATEGORY EDITOR MODAL ----------
-
-function setupCategoryEditorModal() {
-  var openBtn = document.getElementById("open-category-editor");
-  var modal = document.getElementById("category-editor-modal");
-  var textarea = document.getElementById("categories-editor-modal");
-  var cancelBtn = document.getElementById("cancel-categories");
+// ===== CATEGORY EDITOR =====
+function setupCategoryEditor() {
+  var editor = document.getElementById("categories-editor");
   var applyBtn = document.getElementById("apply-categories");
-  var backdrop = modal ? modal.querySelector(".modal-backdrop") : null;
 
-  if (!openBtn || !modal || !textarea || !cancelBtn || !applyBtn) return;
-
-  function openModal() {
-    textarea.value = generateCategoriesTextFromState();
-    modal.classList.remove("hidden");
+  if (!applyBtn || !editor) {
+    console.log("Category editor elements not found");
+    return;
   }
-
-  function closeModal() {
-    modal.classList.add("hidden");
-  }
-
-  openBtn.addEventListener("click", openModal);
-  cancelBtn.addEventListener("click", closeModal);
-  if (backdrop) backdrop.addEventListener("click", closeModal);
 
   applyBtn.addEventListener("click", function () {
-    var text = textarea.value || "";
+    var text = editor.value || "";
+    console.log("Update categories clicked. Raw text:", text);
+
     var categories = parseCategoriesText(text);
+    console.log("Parsed categories:", categories);
 
     if (!categories.length) {
       alert("No valid categories found. Please check your list.");
@@ -266,60 +146,26 @@ function setupCategoryEditorModal() {
     }
 
     state.categories = categories;
-    collapsedCategoryIds.clear();
-
-    renderAllCategoryTrees();
-    refreshTransactionsFilterOptions();
-    renderIncomeStatement();
+    renderCategoryTree();
+    rerenderAll();
 
     alert(
       "Categories updated: " +
         categories.length +
-        ". Check the tree on the Categories tab and the summary on the Dashboard."
+        ". Open the Dashboard/Transactions tab to see the new tree."
     );
-
-    closeModal();
   });
 }
 
-// state.categories -> dashed text (tree order)
-function generateCategoriesTextFromState() {
-  if (!state.categories.length) return "";
-
-  var childrenMap = {};
-  state.categories.forEach(function (c) {
-    var key = c.parentId || "root";
-    if (!childrenMap[key]) childrenMap[key] = [];
-    childrenMap[key].push(c);
-  });
-
-  var lines = [];
-
-  function dfs(cat, level) {
-    var prefix = level > 0 ? Array(level + 1).join("-") : "";
-    lines.push(prefix + cat.name);
-
-    var children = childrenMap[cat.id] || [];
-    children.forEach(function (child) {
-      dfs(child, level + 1);
-    });
-  }
-
-  var roots = childrenMap["root"] || [];
-  roots.forEach(function (root) {
-    dfs(root, 0);
-  });
-
-  return lines.join("\n");
-}
-
-// dashed text -> category tree
+// Convert dash-based text -> category objects
 function parseCategoriesText(text) {
-  if (!text || !text.trim()) return [];
+  if (!text || !text.trim()) {
+    console.log("parseCategoriesText: empty text");
+    return [];
+  }
 
   var rawLines = text.split("\n");
   var lines = [];
-
   rawLines.forEach(function (l) {
     var line = l.replace(/\r/g, "");
     if (line.trim() !== "") lines.push(line);
@@ -337,7 +183,7 @@ function parseCategoriesText(text) {
     var rawName = match[2].trim();
     if (!rawName) return;
 
-    var level = dashes;
+    var level = dashes; // 0 = top level
     var parentMeta = level === 0 ? null : lastByLevel[level - 1] || null;
     var path = parentMeta ? parentMeta.path + " > " + rawName : rawName;
     var id = path;
@@ -350,12 +196,14 @@ function parseCategoriesText(text) {
       parentId: parentId,
       type: type,
       path: path,
-      level: level
+      level: level,
     };
 
     categoriesWithMeta.push(cat);
     lastByLevel[level] = cat;
   });
+
+  console.log("parseCategoriesText: built", categoriesWithMeta.length, "nodes");
 
   var result = [];
   categoriesWithMeta.forEach(function (c) {
@@ -364,17 +212,16 @@ function parseCategoriesText(text) {
       name: c.name,
       parentId: c.parentId,
       type: c.type,
-      level: c.level
     });
   });
 
   return result;
 }
 
+// Simple heuristic for Income vs Expense
 function inferCategoryType(name, parentMeta) {
   var parentName = parentMeta ? parentMeta.name : "";
   var text = (parentName + " " + name).toLowerCase();
-
   if (
     text.indexOf("income") >= 0 ||
     text.indexOf("salary") >= 0 ||
@@ -384,228 +231,53 @@ function inferCategoryType(name, parentMeta) {
   ) {
     return "Income";
   }
-
   return "Expense";
 }
 
-// ---------- CATEGORY TREE RENDER ----------
+// ===== PERIOD FILTER (now inside Dashboard card) =====
+function setupPeriodFilter() {
+  var select = document.getElementById("period-select");
+  var customRange = document.getElementById("custom-range");
+  var fromInput = document.getElementById("date-from");
+  var toInput = document.getElementById("date-to");
 
-function renderAllCategoryTrees() {
-  renderCategoryTreeInto("category-tree-tab");
-}
+  if (!select) return;
 
-function renderCategoryTreeInto(containerId) {
-  var container = document.getElementById(containerId);
-  if (!container) return;
+  select.addEventListener("change", function () {
+    state.dateFilter.mode = select.value;
 
-  container.innerHTML = "";
-
-  if (!state.categories.length) {
-    container.textContent = "No categories defined yet.";
-    return;
-  }
-
-  var childrenMap = {};
-  state.categories.forEach(function (c) {
-    var key = c.parentId || "root";
-    if (!childrenMap[key]) childrenMap[key] = [];
-    childrenMap[key].push(c);
-  });
-
-  var roots = childrenMap["root"] || [];
-
-  function renderNode(cat, depth) {
-    var children = childrenMap[cat.id] || [];
-    var hasChildren = children.length > 0;
-    var isCollapsed = collapsedCategoryIds.has(cat.id);
-
-    var row = document.createElement("div");
-    row.className = "category-row level-" + depth;
-    row.style.marginLeft = depth > 0 ? depth * 18 + "px" : "0px";
-
-    var toggle = document.createElement("span");
-    toggle.className = "category-row__toggle";
-
-    if (hasChildren) {
-      toggle.textContent = isCollapsed ? "▸" : "▾";
-      toggle.addEventListener("click", function (e) {
-        e.stopPropagation();
-        if (isCollapsed) collapsedCategoryIds.delete(cat.id);
-        else collapsedCategoryIds.add(cat.id);
-        renderAllCategoryTrees();
-      });
+    if (select.value === "custom") {
+      customRange.classList.remove("hidden");
     } else {
-      toggle.textContent = "";
-      toggle.classList.add("empty");
+      customRange.classList.add("hidden");
+      state.dateFilter.from = null;
+      state.dateFilter.to = null;
+      rerenderAll();
     }
-
-    var label = document.createElement("span");
-    label.className = "category-row__label";
-    label.textContent = cat.name;
-
-    var path = document.createElement("span");
-    path.className = "category-row__path";
-    if (depth === 0) path.textContent = cat.type || "";
-    else path.textContent = "";
-
-    row.appendChild(toggle);
-    row.appendChild(label);
-    row.appendChild(path);
-
-    container.appendChild(row);
-
-    if (!isCollapsed) {
-      children.forEach(function (child) {
-        renderNode(child, depth + 1);
-      });
-    }
-  }
-
-  roots.forEach(function (root) {
-    renderNode(root, 0);
   });
-}
-
-// ---------- TRANSACTIONS TAB: UI SETUP ----------
-
-function setupTransactionsUI() {
-  var searchInput = document.getElementById("tx-search");
-  var accountSelect = document.getElementById("tx-filter-account");
-  var categorySelect = document.getElementById("tx-filter-category");
-  var labelInput = document.getElementById("tx-filter-label");
-  var dateModeSelect = document.getElementById("tx-filter-date-mode");
-  var fromInput = document.getElementById("tx-date-from");
-  var toInput = document.getElementById("tx-date-to");
-  var dateHeader = document.getElementById("tx-header-date");
-
-  var addBtn = document.getElementById("add-transaction");
-  var deleteBtn = document.getElementById("delete-selected");
-  var bulkCatSelect = document.getElementById("bulk-category-select");
-  var bulkCatBtn = document.getElementById("apply-bulk-category");
-  var bulkLabelInput = document.getElementById("bulk-label-input");
-  var bulkLabelBtn = document.getElementById("apply-bulk-label");
-
-  if (!searchInput) return;
-
-  searchInput.addEventListener("input", function () {
-    state.txFilter.text = (searchInput.value || "").toLowerCase();
-    renderTransactionsTable();
-  });
-
-  if (accountSelect) {
-    accountSelect.addEventListener("change", function () {
-      state.txFilter.account = accountSelect.value;
-      renderTransactionsTable();
-    });
-  }
-
-  if (categorySelect) {
-    categorySelect.addEventListener("change", function () {
-      state.txFilter.categoryId = categorySelect.value;
-      renderTransactionsTable();
-    });
-  }
-
-  if (labelInput) {
-    labelInput.addEventListener("input", function () {
-      state.txFilter.labelText = (labelInput.value || "").toLowerCase();
-      renderTransactionsTable();
-    });
-  }
-
-  if (dateModeSelect) {
-    dateModeSelect.addEventListener("change", function () {
-      state.txFilter.dateMode = dateModeSelect.value;
-      renderTransactionsTable();
-    });
-  }
 
   if (fromInput) {
     fromInput.addEventListener("change", function () {
-      state.txFilter.from = fromInput.value || null;
-      renderTransactionsTable();
+      state.dateFilter.from = fromInput.value || null;
+      rerenderAll();
     });
   }
 
   if (toInput) {
     toInput.addEventListener("change", function () {
-      state.txFilter.to = toInput.value || null;
-      renderTransactionsTable();
+      state.dateFilter.to = toInput.value || null;
+      rerenderAll();
     });
   }
 
-  if (dateHeader) {
-    dateHeader.addEventListener("click", function () {
-      var f = state.txFilter;
-      f.sortByDate = f.sortByDate === "asc" ? "desc" : "asc";
-      renderTransactionsTable();
-    });
-  }
-
-  if (addBtn) {
-    addBtn.addEventListener("click", function () {
-      openTransactionModal("add", null);
-    });
-  }
-
-  if (deleteBtn) {
-    deleteBtn.addEventListener("click", function () {
-      if (!selectedTransactionIds.size) return;
-      if (!confirm("Delete selected transactions?")) return;
-
-      state.transactions = state.transactions.filter(function (tx) {
-        return !selectedTransactionIds.has(tx.id);
-      });
-
-      selectedTransactionIds.clear();
-      refreshTransactionsFilterOptions();
-      renderTransactionsTable();
-      renderIncomeStatement();
-    });
-  }
-
-  if (bulkCatBtn && bulkCatSelect) {
-    bulkCatBtn.addEventListener("click", function () {
-      var catId = bulkCatSelect.value;
-      if (!catId || catId === "none" || !selectedTransactionIds.size) return;
-
-      state.transactions.forEach(function (tx) {
-        if (selectedTransactionIds.has(tx.id)) {
-          tx.categoryId = catId;
-        }
-      });
-
-      renderTransactionsTable();
-      renderIncomeStatement();
-    });
-  }
-
-  if (bulkLabelBtn && bulkLabelInput) {
-    bulkLabelBtn.addEventListener("click", function () {
-      var label = (bulkLabelInput.value || "").trim();
-      if (!label || !selectedTransactionIds.size) return;
-
-      var lower = label.toLowerCase();
-      state.transactions.forEach(function (tx) {
-        if (!selectedTransactionIds.has(tx.id)) return;
-        if (!tx.labels) tx.labels = [];
-        var exists = tx.labels.some(function (l) {
-          return l.toLowerCase() === lower;
-        });
-        if (!exists) tx.labels.push(label);
-      });
-
-      bulkLabelInput.value = "";
-      renderTransactionsTable();
-      refreshTransactionsFilterOptions();
-    });
-  }
+  select.value = state.dateFilter.mode;
 }
 
-// hierarchical category options with dashes
-function getCategoryOptionsFlat() {
-  var result = [];
-  if (!state.categories.length) return result;
+// ===== CATEGORY TREE RENDERING =====
+function renderCategoryTree() {
+  var container = document.getElementById("category-tree");
+  if (!container) return;
+  container.innerHTML = "";
 
   var childrenMap = {};
   state.categories.forEach(function (c) {
@@ -614,268 +286,71 @@ function getCategoryOptionsFlat() {
     childrenMap[key].push(c);
   });
 
-  function dfs(cat, depth, pathLabel) {
-    var prefix = depth > 0 ? Array(depth + 1).join("-") : "";
-    var label = prefix + cat.name;
-    result.push({
-      id: cat.id,
-      label: label,
-      fullPath: pathLabel,
-      depth: depth
-    });
-
-    var children = childrenMap[cat.id] || [];
-    children.forEach(function (child) {
-      dfs(child, depth + 1, pathLabel + " › " + child.name);
-    });
-  }
-
   var roots = childrenMap["root"] || [];
   roots.forEach(function (root) {
-    dfs(root, 0, root.name);
+    renderCategoryNode(container, root, childrenMap, root.name);
   });
-
-  return result;
 }
 
-// fill account & category filters + bulk category select
-function refreshTransactionsFilterOptions() {
-  var accountSelect = document.getElementById("tx-filter-account");
-  var categorySelect = document.getElementById("tx-filter-category");
-  var bulkCatSelect = document.getElementById("bulk-category-select");
+function renderCategoryNode(container, node, childrenMap, path) {
+  var children = childrenMap[node.id] || [];
+  var hasChildren = children.length > 0;
+  var isLeaf = !hasChildren;
 
-  var accounts = new Set();
-  state.transactions.forEach(function (tx) {
-    if (tx.account) accounts.add(tx.account);
+  var div = document.createElement("div");
+  div.className = "category-node" + (isLeaf ? " leaf" : "");
+  div.setAttribute("data-category-id", node.id);
+
+  if (isLeaf) {
+    div.addEventListener("dragover", handleCategoryDragOver);
+    div.addEventListener("dragleave", handleCategoryDragLeave);
+    div.addEventListener("drop", handleCategoryDrop);
+  }
+
+  var label = document.createElement("div");
+  label.className = "category-node__label";
+  label.textContent = node.name;
+
+  var pathEl = document.createElement("div");
+  pathEl.className = "category-node__path";
+  pathEl.textContent = path;
+
+  div.appendChild(label);
+  if (path !== node.name) {
+    div.appendChild(pathEl);
+  }
+
+  container.appendChild(div);
+
+  children.forEach(function (child) {
+    renderCategoryNode(
+      container,
+      child,
+      childrenMap,
+      path + " › " + child.name
+    );
   });
-
-  if (accountSelect) {
-    var currentAcc = accountSelect.value;
-    accountSelect.innerHTML = '<option value="all">All accounts</option>';
-
-    accounts.forEach(function (acc) {
-      var opt = document.createElement("option");
-      opt.value = acc;
-      opt.textContent = acc;
-      accountSelect.appendChild(opt);
-    });
-
-    if (currentAcc && currentAcc !== "all") {
-      accountSelect.value = currentAcc;
-    }
-  }
-
-  var catOptions = getCategoryOptionsFlat();
-
-  function fillCategorySelect(select, includeAll) {
-    if (!select) return;
-    var cur = select.value;
-    select.innerHTML = "";
-
-    if (includeAll) {
-      var optAll = document.createElement("option");
-      optAll.value = "all";
-      optAll.textContent = "All categories";
-      select.appendChild(optAll);
-    } else {
-      var optNone = document.createElement("option");
-      optNone.value = "none";
-      optNone.textContent = "Select category";
-      select.appendChild(optNone);
-    }
-
-    catOptions.forEach(function (c) {
-      var opt = document.createElement("option");
-      opt.value = c.id;
-      opt.textContent = c.label;
-      select.appendChild(opt);
-    });
-
-    if (cur) select.value = cur;
-  }
-
-  fillCategorySelect(categorySelect, true);
-  fillCategorySelect(bulkCatSelect, false);
 }
 
-// ---------- TRANSACTION MODAL ----------
-
-function setupTransactionModal() {
-  var modal = document.getElementById("transaction-editor-modal");
-  if (!modal) return;
-
-  var backdrop = modal.querySelector(".modal-backdrop");
-  var cancelBtn = document.getElementById("tx-modal-cancel");
-  var saveBtn = document.getElementById("tx-modal-save");
-
-  function closeModal() {
-    modal.classList.add("hidden");
-  }
-
-  if (backdrop) backdrop.addEventListener("click", closeModal);
-  if (cancelBtn) cancelBtn.addEventListener("click", closeModal);
-
-  if (saveBtn) {
-    saveBtn.addEventListener("click", function () {
-      var date = document.getElementById("tx-modal-date").value;
-      var desc = document.getElementById("tx-modal-description").value;
-
-      var oAmt = parseFloat(
-        document.getElementById("tx-modal-original-amount").value || "0"
-      );
-      var oCur =
-        document.getElementById("tx-modal-original-currency").value || "AED";
-
-      var cAmt = parseFloat(
-        document.getElementById("tx-modal-converted-amount").value || "0"
-      );
-      var cCur =
-        document.getElementById("tx-modal-converted-currency").value || "AED";
-
-      var account = document.getElementById("tx-modal-account").value;
-      var labelsText = document.getElementById("tx-modal-labels").value.trim();
-      var catSelect = document.getElementById("tx-modal-category");
-      var categoryId = catSelect ? catSelect.value || null : null;
-
-      var labels = [];
-      if (labelsText) {
-        labels = labelsText
-          .split(",")
-          .map(function (t) {
-            return t.trim();
-          })
-          .filter(Boolean);
-      }
-
-      var newId =
-        state.transactions.reduce(function (max, tx) {
-          return Math.max(max, tx.id);
-        }, 0) + 1;
-
-      var tx = {
-        id: newId,
-        date: date || new Date().toISOString().slice(0, 10),
-        description: desc || "",
-        originalAmount: isNaN(oAmt) ? 0 : oAmt,
-        originalCurrency: oCur,
-        convertedAmount: isNaN(cAmt) ? 0 : cAmt,
-        convertedCurrency: cCur,
-        categoryId: categoryId,
-        account: account || "",
-        labels: labels
-      };
-
-      state.transactions.push(tx);
-      refreshTransactionsFilterOptions();
-      renderTransactionsTable();
-      renderIncomeStatement();
-      closeModal();
-    });
-  }
-}
-
-function openTransactionModal(mode, sourceTx) {
-  var modal = document.getElementById("transaction-editor-modal");
-  if (!modal) return;
-
-  txModalMode = mode;
-  txModalSourceTx = sourceTx || null;
-
-  var titleEl = document.getElementById("tx-modal-title");
-  if (titleEl) {
-    titleEl.textContent =
-      mode === "duplicate" ? "Duplicate transaction" : "Add transaction";
-  }
-
-  var dateInput = document.getElementById("tx-modal-date");
-  var descInput = document.getElementById("tx-modal-description");
-  var oAmtInput = document.getElementById("tx-modal-original-amount");
-  var oCurInput = document.getElementById("tx-modal-original-currency");
-  var cAmtInput = document.getElementById("tx-modal-converted-amount");
-  var cCurInput = document.getElementById("tx-modal-converted-currency");
-  var accInput = document.getElementById("tx-modal-account");
-  var labelsInput = document.getElementById("tx-modal-labels");
-  var catSelect = document.getElementById("tx-modal-category");
-
-  // fill category options for modal
-  if (catSelect) {
-    var opts = getCategoryOptionsFlat();
-    catSelect.innerHTML = "";
-
-    var optNone = document.createElement("option");
-    optNone.value = "";
-    optNone.textContent = "Uncategorised";
-    catSelect.appendChild(optNone);
-
-    opts.forEach(function (c) {
-      var opt = document.createElement("option");
-      opt.value = c.id;
-      opt.textContent = c.label;
-      catSelect.appendChild(opt);
-    });
-  }
-
-  var today = new Date().toISOString().slice(0, 10);
-
-  if (mode === "duplicate" && sourceTx) {
-    dateInput.value = sourceTx.date || today;
-    descInput.value = sourceTx.description || "";
-    oAmtInput.value = sourceTx.originalAmount;
-    oCurInput.value = sourceTx.originalCurrency || "AED";
-    cAmtInput.value = sourceTx.convertedAmount;
-    cCurInput.value = sourceTx.convertedCurrency || "AED";
-    accInput.value = sourceTx.account || "";
-    labelsInput.value = (sourceTx.labels || []).join(", ");
-    if (catSelect && sourceTx.categoryId) {
-      catSelect.value = sourceTx.categoryId;
-    }
-  } else {
-    dateInput.value = today;
-    descInput.value = "";
-    oAmtInput.value = "";
-    oCurInput.value = "AED";
-    cAmtInput.value = "";
-    cCurInput.value = "AED";
-    accInput.value = "";
-    labelsInput.value = "";
-    if (catSelect) catSelect.value = "";
-  }
-
-  modal.classList.remove("hidden");
-}
-
-// ---------- TRANSACTIONS TABLE RENDER ----------
-
+// ===== TRANSACTIONS TABLE =====
 function renderTransactionsTable() {
   var tbody = document.getElementById("transactions-body");
   if (!tbody) return;
-
   tbody.innerHTML = "";
 
-  var txs = getTransactionsForTable();
-  var dateHeader = document.getElementById("tx-header-date");
+  var filtered = getFilteredTransactions();
 
-  if (dateHeader) {
-    var base = "Date";
-    var dir = state.txFilter.sortByDate;
-    if (dir === "asc") dateHeader.textContent = base + " ▲";
-    else if (dir === "desc") dateHeader.textContent = base + " ▼";
-    else dateHeader.textContent = base;
-  }
-
-  txs.forEach(function (tx) {
+  filtered.forEach(function (tx) {
     var tr = document.createElement("tr");
+    tr.classList.add("draggable");
+    tr.setAttribute("draggable", "true");
+    tr.setAttribute("data-transaction-id", String(tx.id));
 
-    // select checkbox
+    tr.addEventListener("dragstart", handleTransactionDragStart);
+    tr.addEventListener("dragend", handleTransactionDragEnd);
+
     var selectTd = document.createElement("td");
-    var checkbox = document.createElement("input");
-    checkbox.type = "checkbox";
-    checkbox.checked = selectedTransactionIds.has(tx.id);
-    checkbox.addEventListener("change", function () {
-      if (checkbox.checked) selectedTransactionIds.add(tx.id);
-      else selectedTransactionIds.delete(tx.id);
-    });
-    selectTd.appendChild(checkbox);
+    // (checkboxes for bulk actions could go here later)
 
     var dateTd = document.createElement("td");
     dateTd.textContent = tx.date;
@@ -883,207 +358,70 @@ function renderTransactionsTable() {
     var descTd = document.createElement("td");
     descTd.textContent = tx.description;
 
-    var origTd = document.createElement("td");
-    origTd.textContent = formatAmountCurrency(
-      tx.originalAmount,
-      tx.originalCurrency
-    );
+    var amountTd = document.createElement("td");
+    amountTd.textContent = formatAmount(tx.amount);
 
-    var convTd = document.createElement("td");
-    convTd.textContent = formatAmountCurrency(
-      tx.convertedAmount,
-      tx.convertedCurrency
-    );
-
-    // category dropdown (hierarchical)
     var catTd = document.createElement("td");
-    var catSelect = document.createElement("select");
-    catSelect.className = "filter-select";
-
-    var opts = getCategoryOptionsFlat();
-    var optNone = document.createElement("option");
-    optNone.value = "";
-    optNone.textContent = "Uncategorised";
-    catSelect.appendChild(optNone);
-
-    opts.forEach(function (c) {
-      var opt = document.createElement("option");
-      opt.value = c.id;
-      opt.textContent = c.label;
-      catSelect.appendChild(opt);
-    });
-
-    if (tx.categoryId) catSelect.value = tx.categoryId;
-
-    catSelect.addEventListener("change", function () {
-      tx.categoryId = catSelect.value || null;
-      renderIncomeStatement();
-    });
-
-    catTd.appendChild(catSelect);
-
-    var accTd = document.createElement("td");
-    accTd.textContent = tx.account || "";
-
-    var labelsTd = document.createElement("td");
-    labelsTd.textContent = (tx.labels || []).join(", ");
-
-    var actionsTd = document.createElement("td");
-    var dupBtn = document.createElement("button");
-    dupBtn.textContent = "Duplicate";
-    dupBtn.className = "table-link-button";
-    dupBtn.addEventListener("click", function () {
-      openTransactionModal("duplicate", tx);
-    });
-    actionsTd.appendChild(dupBtn);
+    catTd.textContent = getCategoryName(tx.categoryId);
 
     tr.appendChild(selectTd);
     tr.appendChild(dateTd);
     tr.appendChild(descTd);
-    tr.appendChild(origTd);
-    tr.appendChild(convTd);
+    tr.appendChild(amountTd);
     tr.appendChild(catTd);
-    tr.appendChild(accTd);
-    tr.appendChild(labelsTd);
-    tr.appendChild(actionsTd);
 
     tbody.appendChild(tr);
   });
 }
 
-function getTransactionsForTable() {
-  var f = state.txFilter;
-  var list = state.transactions.slice();
-
-  // text search
-  if (f.text) {
-    list = list.filter(function (tx) {
-      var catName = getCategoryName(tx.categoryId);
-      var haystack =
-        (tx.description || "") +
-        " " +
-        (tx.account || "") +
-        " " +
-        (catName || "");
-      return haystack.toLowerCase().indexOf(f.text) >= 0;
-    });
-  }
-
-  // account filter
-  if (f.account && f.account !== "all") {
-    list = list.filter(function (tx) {
-      return tx.account === f.account;
-    });
-  }
-
-  // category filter
-  if (f.categoryId && f.categoryId !== "all") {
-    list = list.filter(function (tx) {
-      return tx.categoryId === f.categoryId;
-    });
-  }
-
-  // label filter
-  if (f.labelText) {
-    list = list.filter(function (tx) {
-      var labels = tx.labels || [];
-      var combined = labels.join(" ").toLowerCase();
-      return combined.indexOf(f.labelText) >= 0;
-    });
-  }
-
-  // date filter
-  if (f.dateMode !== "any") {
-    list = list.filter(function (tx) {
-      var d = tx.date;
-      if (!d) return false;
-
-      if (f.dateMode === "on" && f.from) return d === f.from;
-      if (f.dateMode === "before" && f.from) return d < f.from;
-      if (f.dateMode === "after" && f.from) return d > f.from;
-      if (f.dateMode === "between" && f.from && f.to)
-        return d >= f.from && d <= f.to;
-
-      return true;
-    });
-  }
-
-  // sort by date
-  if (f.sortByDate === "asc" || f.sortByDate === "desc") {
-    list.sort(function (a, b) {
-      if (a.date === b.date) return a.id - b.id;
-      if (a.date < b.date) return f.sortByDate === "asc" ? -1 : 1;
-      return f.sortByDate === "asc" ? 1 : -1;
-    });
-  }
-
-  return list;
-}
-
-// ---------- INCOME STATEMENT (Dashboard) ----------
-
+// ===== INCOME STATEMENT =====
 function renderIncomeStatement() {
   var container = document.getElementById("income-statement");
   if (!container) return;
-
   container.innerHTML = "";
 
-  var filtered = getFilteredTransactionsDashboard();
+  var filtered = getFilteredTransactions();
+
   var groups = { Income: {}, Expense: {} };
 
   filtered.forEach(function (tx) {
     var cat = state.categories.find(function (c) {
       return c.id === tx.categoryId;
     });
-
     var type =
-      cat && cat.type
-        ? cat.type
-        : tx.convertedAmount >= 0
-        ? "Income"
-        : "Expense";
-
+      cat && cat.type ? cat.type : tx.amount >= 0 ? "Income" : "Expense";
     var group = type === "Income" ? groups.Income : groups.Expense;
     var key = getCategoryName(tx.categoryId);
-
     if (!group[key]) group[key] = 0;
-    group[key] += tx.convertedAmount;
+    group[key] += tx.amount;
   });
 
   var incomeTotal = sumValues(groups.Income);
   var expenseTotal = sumValues(groups.Expense);
   var net = incomeTotal + expenseTotal;
 
-  container.appendChild(
-    buildIncomeGroup("Income", groups.Income, incomeTotal)
-  );
+  container.appendChild(buildIncomeGroup("Income", groups.Income, incomeTotal));
   container.appendChild(
     buildIncomeGroup("Expenses", groups.Expense, expenseTotal)
   );
 
   var netDiv = document.createElement("div");
   netDiv.className = "income-group";
-
   var title = document.createElement("div");
   title.className = "income-group__title";
   title.textContent = "Net";
-
   var line = document.createElement("div");
   line.className = "income-line";
-
   var label = document.createElement("span");
   label.className = "income-line__label";
   label.textContent = "Net result";
-
   var value = document.createElement("span");
   value.className = "income-line__value";
   value.textContent = formatAmount(net);
-
   line.appendChild(label);
   line.appendChild(value);
   netDiv.appendChild(title);
   netDiv.appendChild(line);
-
   container.appendChild(netDiv);
 }
 
@@ -1098,19 +436,16 @@ function buildIncomeGroup(titleText, linesMap, total) {
 
   for (var labelText in linesMap) {
     if (!linesMap.hasOwnProperty(labelText)) continue;
-
     var valueNum = linesMap[labelText];
+
     var line = document.createElement("div");
     line.className = "income-line";
-
     var label = document.createElement("span");
     label.className = "income-line__label";
     label.textContent = labelText;
-
     var value = document.createElement("span");
     value.className = "income-line__value";
     value.textContent = formatAmount(valueNum);
-
     line.appendChild(label);
     line.appendChild(value);
     group.appendChild(line);
@@ -1119,7 +454,8 @@ function buildIncomeGroup(titleText, linesMap, total) {
   return group;
 }
 
-function getFilteredTransactionsDashboard() {
+// ===== HELPERS (FILTERS & FORMATTING) =====
+function getFilteredTransactions() {
   var mode = state.dateFilter.mode;
   var from = state.dateFilter.from;
   var to = state.dateFilter.to;
@@ -1133,12 +469,10 @@ function getFilteredTransactionsDashboard() {
   } else {
     end = today;
     var startDate = new Date(today);
-
     if (mode === "1m") startDate.setMonth(startDate.getMonth() - 1);
     else if (mode === "3m") startDate.setMonth(startDate.getMonth() - 3);
     else if (mode === "6m") startDate.setMonth(startDate.getMonth() - 6);
     else if (mode === "ytd") startDate.setMonth(0, 1);
-
     start = startDate;
   }
 
@@ -1148,209 +482,6 @@ function getFilteredTransactionsDashboard() {
   });
 }
 
-// ---------- IMPORT TAB (PocketSmith CSV) ----------
-
-function setupImportTab() {
-  var fileInput = document.getElementById("import-file");
-  var clearCheckbox = document.getElementById("import-clear-existing");
-  var importButton = document.getElementById("import-button");
-  var statusEl = document.getElementById("import-status");
-
-  if (!fileInput || !importButton) return; // Import tab not present
-
-  function setStatus(msg) {
-    if (statusEl) statusEl.textContent = msg;
-  }
-
-  importButton.addEventListener("click", function () {
-    var file = fileInput.files && fileInput.files[0];
-    if (!file) {
-      alert("Please choose a CSV file first.");
-      return;
-    }
-
-    var reader = new FileReader();
-    reader.onload = function (evt) {
-      try {
-        var text = evt.target.result || "";
-        var rows = parseCsv(text);
-        if (!rows.length) {
-          setStatus("No rows found in file.");
-          return;
-        }
-
-        if (clearCheckbox && clearCheckbox.checked) {
-          state.transactions = [];
-          selectedTransactionIds.clear();
-        }
-
-        var importedCount = importPocketSmithCsv(rows);
-
-        refreshTransactionsFilterOptions();
-        renderTransactionsTable();
-        renderIncomeStatement();
-
-        setStatus("Imported " + importedCount + " transactions from CSV.");
-        alert("Imported " + importedCount + " transactions.");
-      } catch (e) {
-        console.error(e);
-        alert("Error while importing CSV: " + (e.message || e));
-        setStatus("Import failed.");
-      }
-    };
-
-    reader.onerror = function () {
-      alert("Failed to read file.");
-    };
-
-    reader.readAsText(file);
-  });
-}
-
-// Convert parsed CSV rows into our transaction objects.
-// Assumes PocketSmith-like headers:
-//
-// Date, Description, Amount, Currency,
-// Amount in base currency, Base currency,
-// Transaction Type, Account, Closing Balance, Category
-//
-function importPocketSmithCsv(rows) {
-  if (!rows || !rows.length) return 0;
-
-  // Normalize header names used
-  var first = rows[0];
-  var hasDate = "Date" in first;
-  if (!hasDate) {
-    throw new Error("CSV format not recognised (no 'Date' column).");
-  }
-
-  var nextId =
-    state.transactions.reduce(function (max, tx) {
-      return Math.max(max, tx.id);
-    }, 0) + 1;
-
-  var imported = 0;
-
-  rows.forEach(function (row) {
-    var rawDate = (row["Date"] || "").trim();
-    var desc = (row["Description"] || "").trim();
-    var amtStr = (row["Amount in base currency"] || row["Amount"] || "").trim();
-    var baseCur = (row["Base currency"] || row["Currency"] || "AED").trim();
-    var origAmtStr = (row["Amount"] || amtStr || "").trim();
-    var origCur = (row["Currency"] || baseCur || "AED").trim();
-    var account = (row["Account"] || "").trim();
-    var csvCategory = (row["Category"] || "").trim();
-
-    if (!rawDate && !desc && !amtStr) return; // skip empty lines
-
-    var dateIso = convertDatePocketSmith(rawDate);
-
-    var convertedAmount = parseFloat(amtStr || "0");
-    if (isNaN(convertedAmount)) convertedAmount = 0;
-
-    var originalAmount = parseFloat(origAmtStr || amtStr || "0");
-    if (isNaN(originalAmount)) originalAmount = convertedAmount;
-
-    var labels = [];
-    if (csvCategory) labels.push(csvCategory);
-
-    var tx = {
-      id: nextId++,
-      date: dateIso,
-      description: desc,
-      originalAmount: originalAmount,
-      originalCurrency: origCur || baseCur || "AED",
-      convertedAmount: convertedAmount,
-      convertedCurrency: baseCur || origCur || "AED",
-      categoryId: null, // let you recategorise in the UI
-      account: account || "",
-      labels: labels
-    };
-
-    state.transactions.push(tx);
-    imported++;
-  });
-
-  return imported;
-}
-
-// PocketSmith date format: "31-10-25" (dd-mm-yy)
-function convertDatePocketSmith(raw) {
-  if (!raw) return new Date().toISOString().slice(0, 10);
-
-  var parts = raw.split("-");
-  if (parts.length !== 3) {
-    return new Date().toISOString().slice(0, 10);
-  }
-
-  var day = parts[0];
-  var month = parts[1];
-  var yearPart = parts[2];
-
-  var y = parseInt(yearPart, 10);
-  if (isNaN(y)) y = 25;
-  var fullYear = y < 50 ? 2000 + y : 1900 + y;
-
-  function pad2(v) {
-    return v.toString().padStart(2, "0");
-  }
-
-  return fullYear + "-" + pad2(month) + "-" + pad2(day);
-}
-
-// Basic CSV parser supporting quoted fields.
-// Returns array of objects keyed by header row.
-function parseCsv(text) {
-  var lines = text.split(/\r?\n/).filter(function (l) {
-    return l.trim() !== "";
-  });
-  if (!lines.length) return [];
-
-  var header = splitCsvLine(lines[0]);
-  var rows = [];
-
-  for (var i = 1; i < lines.length; i++) {
-    var line = lines[i];
-    if (!line.trim()) continue;
-    var cols = splitCsvLine(line);
-    var obj = {};
-    for (var j = 0; j < header.length; j++) {
-      obj[header[j]] = cols[j] !== undefined ? cols[j] : "";
-    }
-    rows.push(obj);
-  }
-  return rows;
-}
-
-function splitCsvLine(line) {
-  var result = [];
-  var cur = "";
-  var inQuotes = false;
-
-  for (var i = 0; i < line.length; i++) {
-    var ch = line[i];
-
-    if (ch === '"') {
-      if (inQuotes && line[i + 1] === '"') {
-        // Escaped quote
-        cur += '"';
-        i++;
-      } else {
-        inQuotes = !inQuotes;
-      }
-    } else if (ch === "," && !inQuotes) {
-      result.push(cur);
-      cur = "";
-    } else {
-      cur += ch;
-    }
-  }
-  result.push(cur);
-  return result;
-}
-
-// ---------- HELPERS ----------
-
 function getCategoryName(categoryId) {
   var cat = state.categories.find(function (c) {
     return c.id === categoryId;
@@ -1358,14 +489,17 @@ function getCategoryName(categoryId) {
   return cat ? cat.name : "Uncategorised";
 }
 
+// 1,000.00 formatting with sign
 function formatAmount(amount) {
   var sign = amount < 0 ? "-" : "";
-  var value = amountFormatter.format(Math.abs(amount));
-  return sign + value;
-}
-
-function formatAmountCurrency(amount, currency) {
-  return formatAmount(amount) + " " + (currency || "");
+  var value = Math.abs(amount);
+  return (
+    sign +
+    value.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })
+  );
 }
 
 function sumValues(obj) {
@@ -1376,6 +510,239 @@ function sumValues(obj) {
   return sum;
 }
 
-// ---------- BOOTSTRAP ----------
+// ===== DRAG & DROP for recategorisation =====
+var draggedTransactionId = null;
 
-document.addEventListener("DOMContentLoaded", init);
+function handleTransactionDragStart(event) {
+  var tr = event.currentTarget;
+  tr.classList.add("dragging");
+  draggedTransactionId = parseInt(
+    tr.getAttribute("data-transaction-id"),
+    10
+  );
+  event.dataTransfer.effectAllowed = "move";
+}
+
+function handleTransactionDragEnd(event) {
+  var tr = event.currentTarget;
+  tr.classList.remove("dragging");
+  draggedTransactionId = null;
+}
+
+function handleCategoryDragOver(event) {
+  event.preventDefault();
+  event.dataTransfer.dropEffect = "move";
+  event.currentTarget.classList.add("drop-hover");
+}
+
+function handleCategoryDragLeave(event) {
+  event.currentTarget.classList.remove("drop-hover");
+}
+
+function handleCategoryDrop(event) {
+  event.preventDefault();
+  var div = event.currentTarget;
+  var categoryId = div.getAttribute("data-category-id");
+  div.classList.remove("drop-hover");
+
+  if (draggedTransactionId == null) return;
+
+  var tx = state.transactions.find(function (t) {
+    return t.id === draggedTransactionId;
+  });
+  if (!tx) return;
+
+  tx.categoryId = categoryId;
+  rerenderAll();
+}
+
+function rerenderAll() {
+  renderTransactionsTable();
+  renderIncomeStatement();
+}
+
+// ===== IMPORT TAB =====
+function setupImport() {
+  var fileInput = document.getElementById("import-file");
+  var clearCheckbox = document.getElementById("import-clear-existing");
+  var importBtn = document.getElementById("import-button");
+  var statusEl = document.getElementById("import-status");
+
+  if (!fileInput || !importBtn || !statusEl) {
+    console.log("Import elements not found");
+    return;
+  }
+
+  importBtn.addEventListener("click", function () {
+    if (!fileInput.files || !fileInput.files[0]) {
+      alert("Please choose a CSV file first.");
+      return;
+    }
+
+    var file = fileInput.files[0];
+    var reader = new FileReader();
+
+    reader.onload = function (e) {
+      try {
+        var text = e.target.result;
+        var newTx = parseCsvTransactions(text);
+        if (!newTx.length) {
+          statusEl.textContent = "No transactions found in file.";
+          return;
+        }
+
+        if (clearCheckbox && clearCheckbox.checked) {
+          state.transactions = [];
+        }
+
+        var maxId = state.transactions.reduce(function (m, t) {
+          return Math.max(m, t.id || 0);
+        }, 0);
+        var nextId = maxId + 1;
+
+        newTx.forEach(function (t) {
+          t.id = nextId++;
+          state.transactions.push(t);
+        });
+
+        rerenderAll();
+        statusEl.textContent =
+          "Imported " + newTx.length + " transactions successfully.";
+      } catch (err) {
+        console.error("Import error:", err);
+        statusEl.textContent = "Error while importing CSV.";
+      }
+    };
+
+    reader.readAsText(file);
+  });
+}
+
+// --- CSV parsing helpers ---
+
+function parseCsvTransactions(csvText) {
+  var lines = csvText.split(/\r?\n/).filter(function (l) {
+    return l.trim() !== "";
+  });
+  if (!lines.length) return [];
+
+  var headerCells = parseCsvLine(lines[0]).map(function (h) {
+    return h.trim().toLowerCase();
+  });
+
+  function findIndex(names) {
+    for (var i = 0; i < headerCells.length; i++) {
+      for (var j = 0; j < names.length; j++) {
+        if (headerCells[i] === names[j]) return i;
+      }
+    }
+    return -1;
+  }
+
+  var idxDate = findIndex(["date", "transaction date", "effective date"]);
+  var idxDesc = findIndex(["merchant", "description", "details", "payee"]);
+  var idxAmount = findIndex(["amount", "amount (main)", "amount (original)"]);
+  var idxCategory = findIndex(["category"]);
+  var idxAccount = findIndex(["account"]);
+  var idxLabels = findIndex(["labels", "tags"]);
+
+  if (idxDate === -1 || idxAmount === -1) {
+    console.warn("CSV does not contain Date/Amount columns we recognise.");
+  }
+
+  var out = [];
+
+  for (var i = 1; i < lines.length; i++) {
+    var row = parseCsvLine(lines[i]);
+    if (!row.length) continue;
+
+    var rawDate = idxDate >= 0 ? row[idxDate] : "";
+    var rawAmount = idxAmount >= 0 ? row[idxAmount] : "";
+    if (!rawDate && !rawAmount) continue;
+
+    var dateStr = normaliseDateString(rawDate);
+
+    var amount = parseFloat(
+      (rawAmount || "").replace(/[, ]/g, "")
+    );
+    if (isNaN(amount)) amount = 0;
+
+    var desc =
+      idxDesc >= 0 && row[idxDesc] ? row[idxDesc] : "(no description)";
+    var account = idxAccount >= 0 ? row[idxAccount] : "";
+    var labelsRaw = idxLabels >= 0 ? row[idxLabels] : "";
+    var labels =
+      labelsRaw && labelsRaw.trim()
+        ? labelsRaw.split(/\s*,\s*/).filter(Boolean)
+        : [];
+
+    var categoryName =
+      idxCategory >= 0 && row[idxCategory]
+        ? String(row[idxCategory]).trim()
+        : "";
+    var categoryId = null;
+    if (categoryName) {
+      var match = state.categories.find(function (c) {
+        return c.name.toLowerCase() === categoryName.toLowerCase();
+      });
+      if (match) categoryId = match.id;
+    }
+
+    out.push({
+      date: dateStr,
+      description: desc,
+      amount: amount,
+      categoryId: categoryId,
+      account: account,
+      labels: labels,
+    });
+  }
+
+  return out;
+}
+
+// CSV line -> cells (handles quotes)
+function parseCsvLine(line) {
+  var result = [];
+  var current = "";
+  var inQuotes = false;
+
+  for (var i = 0; i < line.length; i++) {
+    var ch = line[i];
+
+    if (inQuotes) {
+      if (ch === '"') {
+        if (i + 1 < line.length && line[i + 1] === '"') {
+          current += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        current += ch;
+      }
+    } else {
+      if (ch === '"') {
+        inQuotes = true;
+      } else if (ch === ",") {
+        result.push(current);
+        current = "";
+      } else {
+        current += ch;
+      }
+    }
+  }
+
+  result.push(current);
+  return result;
+}
+
+function normaliseDateString(raw) {
+  if (!raw) return "";
+  var d = new Date(raw);
+  if (!isNaN(d.getTime())) {
+    return d.toISOString().slice(0, 10);
+  }
+  // fallback: just return the raw value
+  return raw;
+}
