@@ -768,4 +768,278 @@ function setupImport() {
         if (clearCheckbox && clearCheckbox.checked) {
           state.transactions = imported;
         } else {
-          state.transactions = state.transactions.conca
+          state.transactions = state.transactions.concat(imported);
+        }
+
+        renderCategoryTree();
+        rerenderAll();
+
+        statusEl.textContent =
+          "Imported " + imported.length + " transactions successfully.";
+      } catch (err) {
+        console.error("Import error:", err);
+        statusEl.textContent = "Import failed: " + (err.message || err);
+      }
+    };
+
+    reader.onerror = function () {
+      statusEl.textContent = "Could not read file.";
+    };
+
+    reader.readAsText(file);
+  });
+}
+
+function parsePocketSmithCsv(csvText) {
+  if (!csvText || !csvText.trim()) return [];
+
+  var lines = csvText.split(/\r?\n/).filter(function (l) {
+    return l.trim() !== "";
+  });
+  if (!lines.length) return [];
+
+  var headers = splitCsvLine(lines[0]).map(function (h) {
+    return h.trim().toLowerCase();
+  });
+
+  function idx(names) {
+    for (var i = 0; i < headers.length; i++) {
+      for (var j = 0; j < names.length; j++) {
+        if (headers[i] === names[j]) return i;
+      }
+    }
+    return -1;
+  }
+
+  var idxDate = idx(["date"]);
+  var idxDesc = idx(["description", "merchant", "memo"]);
+  var idxConvAmt = idx([
+    "amount in base currency",
+    "amount (account)",
+    "amount"
+  ]);
+  var idxCategory = idx(["category"]);
+  var idxAccount = idx(["account"]);
+
+  if (idxDate === -1 || idxDesc === -1 || idxConvAmt === -1) {
+    throw new Error(
+      "CSV headers not recognised (need at least Date, Description, Amount)."
+    );
+  }
+
+  var txs = [];
+
+  for (var i = 1; i < lines.length; i++) {
+    var row = splitCsvLine(lines[i]);
+    if (
+      !row.length ||
+      row.every(function (c) {
+        return !c.trim();
+      })
+    )
+      continue;
+
+    function cell(index) {
+      return index >= 0 && index < row.length ? row[index].trim() : "";
+    }
+
+    var rawDate = cell(idxDate);
+    var description = cell(idxDesc);
+    var convAmtStr = cell(idxConvAmt);
+    var categoryName = cell(idxCategory);
+    var account = cell(idxAccount);
+
+    var amount = parseNumber(convAmtStr);
+    var isoDate = normaliseDate(rawDate);
+    var categoryId = ensureCategoryFromCsv(categoryName);
+
+    txs.push({
+      id: null,
+      date: isoDate,
+      description: description,
+      amount: amount,
+      categoryId: categoryId,
+      account: account,
+      labels: []
+    });
+  }
+
+  return txs;
+}
+
+function splitCsvLine(line) {
+  var result = [];
+  var current = "";
+  var inQuotes = false;
+
+  for (var i = 0; i < line.length; i++) {
+    var ch = line[i];
+
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (ch === "," && !inQuotes) {
+      result.push(current);
+      current = "";
+    } else {
+      current += ch;
+    }
+  }
+  result.push(current);
+  return result;
+}
+
+function parseNumber(str) {
+  if (!str) return 0;
+  return parseFloat(String(str).replace(/,/g, ""));
+}
+
+function normaliseDate(s) {
+  if (!s) return "";
+  s = s.trim();
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+
+  var m = s.match(/^(\d{2})-(\d{2})-(\d{2})$/);
+  if (m) {
+    var d = m[1];
+    var mo = m[2];
+    var yy = parseInt(m[3], 10);
+    var year = yy >= 70 ? 1900 + yy : 2000 + yy;
+    return year + "-" + mo + "-" + d;
+  }
+
+  var dt = new Date(s);
+  if (!isNaN(dt.getTime())) {
+    var month = String(dt.getMonth() + 1).padStart(2, "0");
+    var day = String(dt.getDate()).padStart(2, "0");
+    return dt.getFullYear() + "-" + month + "-" + day;
+  }
+
+  return s;
+}
+
+function ensureCategoryFromCsv(name) {
+  if (!name) return null;
+  var trimmed = name.trim();
+  if (!trimmed) return null;
+
+  var existing = state.categories.find(function (c) {
+    return c.name === trimmed;
+  });
+  if (existing) return existing.id;
+
+  var type = inferCategoryType(trimmed, null);
+  var id = trimmed;
+  var cat = { id: id, name: trimmed, parentId: null, type: type };
+  state.categories.push(cat);
+  return id;
+}
+
+// ========== SHARED HELPERS ==========
+function getFilteredTransactions() {
+  var mode = state.dateFilter.mode;
+  var from = state.dateFilter.from;
+  var to = state.dateFilter.to;
+  var today = new Date();
+
+  var start, end;
+
+  if (mode === "custom" && from && to) {
+    start = new Date(from);
+    end = new Date(to);
+  } else {
+    end = today;
+    var startDate = new Date(today);
+    if (mode === "1m") startDate.setMonth(startDate.getMonth() - 1);
+    else if (mode === "3m") startDate.setMonth(startDate.getMonth() - 3);
+    else if (mode === "6m") startDate.setMonth(startDate.getMonth() - 6);
+    else if (mode === "ytd") startDate.setMonth(0, 1);
+    start = startDate;
+  }
+
+  return state.transactions.filter(function (tx) {
+    var d = new Date(tx.date);
+    return d >= start && d <= end;
+  });
+}
+
+function getCategoryName(categoryId) {
+  var cat = state.categories.find(function (c) {
+    return c.id === categoryId;
+  });
+  return cat ? cat.name : "Uncategorised";
+}
+
+function formatAmount(amount) {
+  return Number(amount || 0).toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+}
+
+function sumValues(obj) {
+  var sum = 0;
+  for (var k in obj) {
+    if (obj.hasOwnProperty(k)) sum += obj[k];
+  }
+  return sum;
+}
+
+// drag & drop (transactions → categories)
+var draggedTransactionId = null;
+
+function handleTransactionDragStart(event) {
+  var tr = event.currentTarget;
+  tr.classList.add("dragging");
+  draggedTransactionId = parseInt(tr.getAttribute("data-transaction-id"), 10);
+  event.dataTransfer.effectAllowed = "move";
+}
+
+function handleTransactionDragEnd(event) {
+  var tr = event.currentTarget;
+  tr.classList.remove("dragging");
+  draggedTransactionId = null;
+}
+
+function handleCategoryDragOver(event) {
+  event.preventDefault();
+  event.dataTransfer.dropEffect = "move";
+  event.currentTarget.classList.add("drop-hover");
+}
+
+function handleCategoryDragLeave(event) {
+  event.currentTarget.classList.remove("drop-hover");
+}
+
+function handleCategoryDrop(event) {
+  event.preventDefault();
+  var div = event.currentTarget;
+  var categoryId = div.getAttribute("data-category-id");
+  div.classList.remove("drop-hover");
+
+  if (draggedTransactionId == null) return;
+
+  var tx = state.transactions.find(function (t) {
+    return t.id === draggedTransactionId;
+  });
+  if (!tx) return;
+
+  tx.categoryId = categoryId;
+  rerenderAll();
+}
+
+function rerenderAll() {
+  renderTransactionsTable();
+  renderIncomeStatement();
+}
+
+// ========== BOOTSTRAP ==========
+document.addEventListener("DOMContentLoaded", function () {
+  console.log("DOMContentLoaded fired");
+  init();
+});
