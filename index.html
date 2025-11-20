@@ -2,128 +2,177 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Budget Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-  <!-- Correct CSS path -->
+  <!-- Main styles -->
   <link rel="stylesheet" href="src/css/styles.css" />
 </head>
-
 <body>
   <header class="top-bar">
-    <div class="top-bar__left">
-      <h1>Budget Dashboard</h1>
-    </div>
-
+    <div class="top-bar__title">Budget Dashboard</div>
     <div class="top-bar__filters">
       <label for="period-select">Period:</label>
       <select id="period-select">
-        <option value="1m">Last 1 month</option>
+        <option value="1m">Last month</option>
         <option value="3m">Last 3 months</option>
-        <option value="6m" selected>Last 6 months</option>
+        <option value="6m">Last 6 months</option>
         <option value="ytd">Year to date</option>
         <option value="custom">Custom range</option>
       </select>
 
-      <div id="custom-range" class="hidden">
-        <input type="date" id="date-from" />
-        <input type="date" id="date-to" />
+      <div id="custom-range" class="custom-range hidden">
+        <label>
+          From:
+          <input type="date" id="date-from" />
+        </label>
+        <label>
+          To:
+          <input type="date" id="date-to" />
+        </label>
       </div>
     </div>
   </header>
 
-  <!-- Navigation Tabs -->
-  <div class="tabs">
-    <label>
-      <input type="radio" name="tab" id="tab-radio-dashboard" checked />
-      <span>Dashboard</span>
-    </label>
+  <!-- Tabs -->
+  <nav class="tabs">
+    <button class="tab-button tab-button--active" data-tab="dashboard">Dashboard</button>
+    <button class="tab-button" data-tab="transactions">Transactions</button>
+    <button class="tab-button" data-tab="categories">Categories</button>
+    <button class="tab-button" data-tab="import">Import</button>
+  </nav>
 
-    <label>
-      <input type="radio" name="tab" id="tab-radio-transactions" />
-      <span>Transactions</span>
-    </label>
+  <main class="page">
+    <!-- DASHBOARD TAB -->
+    <section id="tab-dashboard" class="tab-content tab-content--active">
+      <h1>Income statement</h1>
+      <p class="section-subtitle">
+        Summary of income and expenses for the selected period.
+      </p>
 
-    <label>
-      <input type="radio" name="tab" id="tab-radio-categories" />
-      <span>Categories</span>
-    </label>
-
-    <label>
-      <input type="radio" name="tab" id="tab-radio-import" />
-      <span>Import</span>
-    </label>
-  </div>
-
-  <!-- DASHBOARD TAB -->
-  <section id="tab-dashboard" class="tab-content">
-    <h2>Income statement</h2>
-    <p>Summary of income and expenses for the selected period.</p>
-
-    <div id="income-statement"></div>
-  </section>
-
-  <!-- TRANSACTIONS TAB -->
-  <section id="tab-transactions" class="tab-content hidden">
-    <h2>Transactions</h2>
-
-    <table class="transactions-table">
-      <thead>
-        <tr>
-          <th></th>
-          <th>Date</th>
-          <th>Description</th>
-          <th>Amount</th>
-          <th>Category</th>
-        </tr>
-      </thead>
-      <tbody id="transactions-body"></tbody>
-    </table>
-  </section>
-
-  <!-- CATEGORIES TAB -->
-  <section id="tab-categories" class="tab-content hidden">
-    <h2>Categories</h2>
-
-    <div class="category-columns">
-      <div class="category-column">
-        <h3>Income categories</h3>
-        <div id="income-category-tree"></div>
+      <div id="income-statement" class="card income-statement">
+        <!-- Filled by app.js -->
       </div>
+    </section>
 
-      <div class="category-column">
-        <h3>Expense categories</h3>
-        <div id="expense-category-tree"></div>
+    <!-- TRANSACTIONS TAB -->
+    <section id="tab-transactions" class="tab-content">
+      <h1>Transactions</h1>
+
+      <div class="card">
+        <table class="transactions-table">
+          <thead>
+            <tr>
+              <th class="tx-col-select"></th>
+              <th>Date</th>
+              <th>Description</th>
+              <th>Amount</th>
+              <th>Category</th>
+            </tr>
+          </thead>
+          <tbody id="transactions-body">
+            <!-- Filled by app.js -->
+          </tbody>
+        </table>
       </div>
+    </section>
 
-      <div class="category-editor">
-        <h3>Categories editor</h3>
-        <p>Paste your category tree here. Use dashes for nesting.</p>
-        <textarea id="categories-editor"></textarea>
-        <button id="apply-categories">Update categories</button>
+    <!-- CATEGORIES TAB -->
+    <section id="tab-categories" class="tab-content">
+      <h1>Categories</h1>
+      <p class="section-subtitle">
+        Drag transactions onto leaf categories to recategorise them. Edit the
+        category tree using the text editor.
+      </p>
+
+      <div class="grid-two">
+        <div class="card">
+          <h2 class="card-title">Category tree</h2>
+          <div id="category-tree" class="category-tree">
+            <!-- Filled by app.js -->
+          </div>
+        </div>
+
+        <div class="card">
+          <h2 class="card-title">Categories editor</h2>
+          <p class="helper-text">
+            Paste your category tree here, one per line. Use dashes for levels
+            (no dash = top level, <code>-</code> = level 1,
+            <code>--</code> = level 2, etc.).
+          </p>
+          <textarea
+            id="categories-editor"
+            class="categories-textarea"
+            rows="18"
+          ></textarea>
+          <div class="card-actions">
+            <button id="apply-categories" class="btn-primary">
+              Update categories
+            </button>
+          </div>
+        </div>
       </div>
-    </div>
-  </section>
+    </section>
 
-  <!-- IMPORT TAB -->
-  <section id="tab-import" class="tab-content hidden">
-    <h2>Import transactions</h2>
+    <!-- IMPORT TAB -->
+    <section id="tab-import" class="tab-content">
+      <h1>Import transactions</h1>
+      <div class="card">
+        <p class="section-subtitle">
+          Upload a PocketSmith CSV export. You can append or replace your
+          existing transactions.
+        </p>
 
-    <label>CSV file:
-      <input type="file" id="import-file" accept=".csv" />
-    </label>
+        <div class="form-row">
+          <label for="import-file">CSV file:</label>
+          <input type="file" id="import-file" accept=".csv" />
+        </div>
 
-    <label>
-      <input type="checkbox" id="import-clear-existing" />
-      Clear existing transactions before import
-    </label>
+        <div class="form-row">
+          <label>
+            <input type="checkbox" id="import-clear-existing" />
+            Clear existing transactions before import
+          </label>
+        </div>
 
-    <button id="import-button">Import CSV</button>
+        <div class="card-actions">
+          <button id="import-button" class="btn-primary">Import CSV</button>
+          <span id="import-status" class="import-status"></span>
+        </div>
+      </div>
+    </section>
+  </main>
 
-    <p id="import-status"></p>
-  </section>
+  <!-- App script – MUST be in same folder as index.html -->
+  <script src="app.js"></script>
 
-  <!-- Correct JS path -->
-  <script src="src/app.js"></script>
+  <script>
+    // Simple tab switching (independent of app.js)
+    (function () {
+      var buttons = document.querySelectorAll(".tab-button");
+      var tabs = document.querySelectorAll(".tab-content");
+
+      function showTab(name) {
+        tabs.forEach(function (el) {
+          el.classList.toggle(
+            "tab-content--active",
+            el.id === "tab-" + name
+          );
+        });
+        buttons.forEach(function (btn) {
+          btn.classList.toggle(
+            "tab-button--active",
+            btn.getAttribute("data-tab") === name
+          );
+        });
+      }
+
+      buttons.forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          showTab(btn.getAttribute("data-tab"));
+        });
+      });
+    })();
+  </script>
 </body>
 </html>
