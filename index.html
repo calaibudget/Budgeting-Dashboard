@@ -4,144 +4,180 @@
     <meta charset="UTF-8" />
     <title>Budget Dashboard</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-
-    <!-- CSS -->
     <link rel="stylesheet" href="src/css/styles.css" />
   </head>
-  <body>
-    <div class="page">
-      <!-- Header -->
-      <header class="app-header">
-        <div class="app-title">Budget Dashboard</div>
+  <body class="app">
+    <!-- ================= HEADER ================= -->
+    <header class="app-header">
+      <div class="app-header__title">Budget Dashboard</div>
+      <div class="app-header__right">
+        <span class="app-header__label">Period:</span>
+        <select id="period-select">
+          <option value="1m">Last month</option>
+          <option value="3m">Last 3 months</option>
+          <option value="6m">Last 6 months</option>
+          <option value="ytd">Year to date</option>
+          <option value="custom">Custom range</option>
+        </select>
 
-        <div class="period-filter">
-          <span>Period:</span>
-          <select id="period-select">
-            <option value="1m">Last month</option>
-            <option value="3m">Last 3 months</option>
-            <option value="6m" selected>Last 6 months</option>
-            <option value="ytd">Year to date</option>
-            <option value="custom">Custom range</option>
-          </select>
+        <div id="custom-range" class="app-header__custom-range hidden">
+          <span class="app-header__label">From</span>
+          <input id="date-from" type="date" />
+          <span class="app-header__label">To</span>
+          <input id="date-to" type="date" />
+        </div>
+      </div>
+    </header>
 
-          <div id="custom-range" class="custom-range hidden">
-            <input type="date" id="date-from" />
-            <input type="date" id="date-to" />
+    <!-- ================= MAIN ================= -->
+    <main class="app-main">
+      <!-- Tabs -->
+      <div class="tabs">
+        <button
+          class="tab-button tab-button--active"
+          data-tab-target="dashboard"
+        >
+          Dashboard
+        </button>
+        <button class="tab-button" data-tab-target="transactions">
+          Transactions
+        </button>
+        <button class="tab-button" data-tab-target="categories">
+          Categories
+        </button>
+        <button class="tab-button" data-tab-target="import">
+          Import
+        </button>
+      </div>
+
+      <!-- ===== DASHBOARD TAB ===== -->
+      <section
+        class="tab-panel tab-panel--active"
+        data-tab="dashboard"
+        id="tab-dashboard"
+      >
+        <section class="card">
+          <h2 class="card__title">Income statement</h2>
+          <p class="card__subtitle">
+            Summary of income and expenses for the selected period.
+          </p>
+          <div id="income-statement">
+            <!-- Filled by app.js -->
           </div>
-        </div>
-      </header>
-
-      <!-- Tabs (visual only) -->
-      <nav class="tabs">
-        <button class="tab tab--active" type="button">Dashboard</button>
-        <button class="tab" type="button">Transactions</button>
-        <button class="tab" type="button">Categories</button>
-        <button class="tab" type="button">Import</button>
-      </nav>
-
-      <!-- ===== Dashboard: Income statement ===== -->
-      <section class="card">
-        <div class="card__header">
-          <h1 class="card__title">Income statement</h1>
-        </div>
-        <p class="card__subtitle">
-          Summary of income and expenses for the selected period.
-        </p>
-        <p id="income-summary" class="income-summary">
-          <!-- populated by JS -->
-        </p>
-
-        <div id="income-statement">
-          <!-- populated by JS -->
-        </div>
+        </section>
       </section>
 
-      <!-- ===== Transactions ===== -->
-      <section class="card">
-        <div class="card__header">
-          <h2 class="card__title">Transactions</h2>
-        </div>
-
-        <table class="transactions-table">
-          <thead>
-            <tr>
-              <th class="tx-col-select"></th>
-              <th>Date</th>
-              <th>Description</th>
-              <th>Amount</th>
-              <th>Category</th>
-              <th>Labels</th>
-            </tr>
-          </thead>
-          <tbody id="transactions-body">
-            <!-- populated by JS -->
-          </tbody>
-        </table>
-      </section>
-
-      <!-- ===== Categories ===== -->
-      <section class="card">
-        <div class="card__header">
-          <h2 class="card__title">Categories</h2>
-        </div>
-
-        <div class="categories-layout">
-          <div class="categories-tree-wrapper">
-            <h3>Category tree</h3>
-            <p class="muted">
-              Visual tree of income and expense categories.
-            </p>
-            <div id="category-tree" class="category-tree">
-              <!-- populated by JS -->
+      <!-- ===== TRANSACTIONS TAB ===== -->
+      <section class="tab-panel" data-tab="transactions" id="tab-transactions">
+        <section class="card">
+          <div class="transactions-header">
+            <div class="transactions-header__title">Transactions</div>
+            <div class="transactions-header__controls">
+              <!-- space for future filters / actions -->
             </div>
           </div>
 
-          <div class="categories-editor-wrapper">
-            <h3>Categories editor</h3>
-            <p class="muted">
-              Paste your category tree here, one per line. Use dashes for
-              levels (no dash = top level, <code>-</code> = level 1,
-              <code>--</code> = level 2, etc.).
-            </p>
-            <textarea id="categories-editor"></textarea>
-            <button id="apply-categories" type="button">
-              Update categories
-            </button>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th></th>
+                <th>Date</th>
+                <th>Description</th>
+                <th class="col-amount">Amount</th>
+                <th>Category</th>
+                <th>Labels</th>
+              </tr>
+            </thead>
+            <tbody id="transactions-body">
+              <!-- Filled by app.js -->
+            </tbody>
+          </table>
+        </section>
+      </section>
+
+      <!-- ===== CATEGORIES TAB ===== -->
+      <section class="tab-panel" data-tab="categories" id="tab-categories">
+        <section class="card">
+          <h2 class="card__title">Categories</h2>
+          <p class="card__subtitle">
+            Visual tree of income and expense categories. Edit the structure via
+            the text editor on the right.
+          </p>
+
+          <div class="categories-layout">
+            <!-- Left: trees -->
+            <div class="category-tree-card">
+              <h4>Income categories</h4>
+              <div
+                id="income-category-tree"
+                class="category-tree"
+              >
+                <!-- Filled by app.js -->
+              </div>
+
+              <h4 style="margin-top: 12px;">Expense categories</h4>
+              <div
+                id="expense-category-tree"
+                class="category-tree"
+              >
+                <!-- Filled by app.js -->
+              </div>
+            </div>
+
+            <!-- Right: editor -->
+            <div class="category-editor-card">
+              <h4>Categories editor</h4>
+              <p class="category-editor__hint">
+                Paste your category tree here, one per line. Use dashes for
+                levels (<code>no dash</code> = top level,
+                <code>-</code> = level 1, <code>--</code> = level 2, etc.).<br />
+                Income vs expense is inferred from the name
+                (e.g. “Salary”, “Allowance”, “Cashback” =&gt; Income; everything
+                else =&gt; Expense).
+              </p>
+              <textarea id="categories-editor"></textarea>
+              <button id="apply-categories" class="button-primary">
+                Update categories
+              </button>
+            </div>
           </div>
-        </div>
+        </section>
       </section>
 
-      <!-- ===== Import ===== -->
-      <section class="card">
-        <div class="card__header">
+      <!-- ===== IMPORT TAB ===== -->
+      <section class="tab-panel" data-tab="import" id="tab-import">
+        <section class="card">
           <h2 class="card__title">Import transactions</h2>
-        </div>
-        <p class="card__subtitle">
-          Upload a PocketSmith CSV export. You can append to or replace the
-          existing transactions.
-        </p>
+          <p class="card__subtitle">
+            Upload a PocketSmith-style CSV export. You can append to, or replace
+            the existing transactions.
+          </p>
 
-        <div class="import-form">
-          <input
-            type="file"
-            id="import-file"
-            accept=".csv"
-          />
-          <label>
-            <input
-              type="checkbox"
-              id="import-clear-existing"
-              checked
-            />
-            Clear existing transactions before import
-          </label>
-          <button id="import-button" type="button">Import CSV</button>
-        </div>
-        <p id="import-status" class="import-status"></p>
+          <div class="import-layout">
+            <div>
+              <label for="import-file">CSV file:</label>
+              <input id="import-file" type="file" accept=".csv,text/csv" />
+            </div>
+
+            <label>
+              <input
+                id="import-clear-existing"
+                type="checkbox"
+              />
+              Clear existing transactions before import
+            </label>
+
+            <div>
+              <button id="import-button" class="button-primary">
+                Import CSV
+              </button>
+              <div id="import-status"></div>
+            </div>
+          </div>
+        </section>
       </section>
-    </div>
+    </main>
 
-    <!-- JS -->
     <script src="app.js"></script>
   </body>
 </html>
