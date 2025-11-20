@@ -2,22 +2,27 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Budget Dashboard</title>
-  <link rel="stylesheet" href="styles.css" />
+
+  <!-- Correct CSS path -->
+  <link rel="stylesheet" href="src/css/styles.css" />
 </head>
 
 <body>
-  <header>
-    <h1>Budget Dashboard</h1>
+  <header class="top-bar">
+    <div class="top-bar__left">
+      <h1>Budget Dashboard</h1>
+    </div>
 
-    <div class="period-filter">
+    <div class="top-bar__filters">
       <label for="period-select">Period:</label>
       <select id="period-select">
-        <option value="1m">Last month</option>
+        <option value="1m">Last 1 month</option>
         <option value="3m">Last 3 months</option>
-        <option value="6m">Last 6 months</option>
+        <option value="6m" selected>Last 6 months</option>
         <option value="ytd">Year to date</option>
-        <option value="custom">Custom</option>
+        <option value="custom">Custom range</option>
       </select>
 
       <div id="custom-range" class="hidden">
@@ -27,16 +32,31 @@
     </div>
   </header>
 
-  <!-- Navigation -->
-  <nav class="tabs">
-    <button data-tab="dashboard" class="active">Dashboard</button>
-    <button data-tab="transactions">Transactions</button>
-    <button data-tab="categories">Categories</button>
-    <button data-tab="import">Import</button>
-  </nav>
+  <!-- Navigation Tabs -->
+  <div class="tabs">
+    <label>
+      <input type="radio" name="tab" id="tab-radio-dashboard" checked />
+      <span>Dashboard</span>
+    </label>
+
+    <label>
+      <input type="radio" name="tab" id="tab-radio-transactions" />
+      <span>Transactions</span>
+    </label>
+
+    <label>
+      <input type="radio" name="tab" id="tab-radio-categories" />
+      <span>Categories</span>
+    </label>
+
+    <label>
+      <input type="radio" name="tab" id="tab-radio-import" />
+      <span>Import</span>
+    </label>
+  </div>
 
   <!-- DASHBOARD TAB -->
-  <section id="tab-dashboard" class="tab-panel active">
+  <section id="tab-dashboard" class="tab-content">
     <h2>Income statement</h2>
     <p>Summary of income and expenses for the selected period.</p>
 
@@ -44,7 +64,7 @@
   </section>
 
   <!-- TRANSACTIONS TAB -->
-  <section id="tab-transactions" class="tab-panel">
+  <section id="tab-transactions" class="tab-content hidden">
     <h2>Transactions</h2>
 
     <table class="transactions-table">
@@ -62,62 +82,48 @@
   </section>
 
   <!-- CATEGORIES TAB -->
-  <section id="tab-categories" class="tab-panel">
+  <section id="tab-categories" class="tab-content hidden">
     <h2>Categories</h2>
-    <p>Visual tree on the left → editor on the right.</p>
 
-    <div class="categories-layout">
-      <!-- LEFT SIDE: Two trees -->
-      <div class="categories-columns">
-        <!-- Income categories -->
-        <div class="card">
-          <h3>Income categories</h3>
-          <div id="income-category-tree" class="category-tree"></div>
-        </div>
-
-        <!-- Expense categories -->
-        <div class="card">
-          <h3>Expense categories</h3>
-          <div id="expense-category-tree" class="category-tree"></div>
-        </div>
+    <div class="category-columns">
+      <div class="category-column">
+        <h3>Income categories</h3>
+        <div id="income-category-tree"></div>
       </div>
 
-      <!-- RIGHT SIDE: Editors -->
-      <div class="card categories-editor-card">
+      <div class="category-column">
+        <h3>Expense categories</h3>
+        <div id="expense-category-tree"></div>
+      </div>
+
+      <div class="category-editor">
         <h3>Categories editor</h3>
-        <p>Use dashes for levels (e.g., <code>-</code> for level 1, <code>--</code> for level 2).</p>
-
-        <label class="editor-label">Income categories</label>
-        <textarea id="income-categories-editor" rows="8"></textarea>
-
-        <label class="editor-label">Expense categories</label>
-        <textarea id="expense-categories-editor" rows="12"></textarea>
-
-        <button id="apply-categories" class="primary-btn">Update categories</button>
+        <p>Paste your category tree here. Use dashes for nesting.</p>
+        <textarea id="categories-editor"></textarea>
+        <button id="apply-categories">Update categories</button>
       </div>
     </div>
   </section>
 
   <!-- IMPORT TAB -->
-  <section id="tab-import" class="tab-panel">
+  <section id="tab-import" class="tab-content hidden">
     <h2>Import transactions</h2>
-    <p>Upload a PocketSmith CSV export.</p>
 
-    <div class="import-card">
-      <label>CSV file:
-        <input type="file" id="import-file" accept=".csv" />
-      </label>
+    <label>CSV file:
+      <input type="file" id="import-file" accept=".csv" />
+    </label>
 
-      <label class="import-clear">
-        <input type="checkbox" id="import-clear-existing" />
-        Clear existing transactions before import
-      </label>
+    <label>
+      <input type="checkbox" id="import-clear-existing" />
+      Clear existing transactions before import
+    </label>
 
-      <button id="import-button" class="primary-btn">Import CSV</button>
-      <div id="import-status" class="import-status"></div>
-    </div>
+    <button id="import-button">Import CSV</button>
+
+    <p id="import-status"></p>
   </section>
 
-  <script src="app.js"></script>
+  <!-- Correct JS path -->
+  <script src="src/app.js"></script>
 </body>
 </html>
