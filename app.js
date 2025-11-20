@@ -1,62 +1,70 @@
-// app.js
 console.log("App script loaded");
 
-// ========================= STATE =========================
-
+// ========== GLOBAL STATE ==========
 var state = {
   transactions: [],
   categories: [],
-  nextTxId: 1,
   dateFilter: {
-    mode: "6m", // 1m, 3m, 6m, ytd, custom
+    mode: "6m",
     from: null,
     to: null,
   },
 };
 
-// ========================= SAMPLE DATA =========================
+// Helper lookup maps (rebuilt whenever categories change)
+var categoryById = {};
+var ancestorsCache = {};
 
+// ========== SAMPLE DATA ==========
 function loadSampleData() {
-  console.log("loadSampleData");
-
-  // Category model:
-  // id: string, name: string, parentId: string|null, type: "Income"|"Expense"
+  // Categories
   state.categories = [
-    // ---- Income ----
-    { id: "Base Salary", name: "Base Salary", parentId: null, type: "Income" },
+    // INCOME
+    { id: "Income", name: "Income", parentId: null, type: "Income" },
     {
-      id: "Cashback",
+      id: "Income > Base Salary",
+      name: "Base Salary",
+      parentId: "Income",
+      type: "Income",
+    },
+    {
+      id: "Income > Cashback",
       name: "Cashback",
-      parentId: null,
+      parentId: "Income",
       type: "Income",
     },
     {
-      id: "Per Diem",
+      id: "Income > Per Diem",
       name: "Per Diem",
-      parentId: null,
+      parentId: "Income",
       type: "Income",
     },
     {
-      id: "Interest Income",
+      id: "Income > Interest Income",
       name: "Interest Income",
-      parentId: null,
+      parentId: "Income",
       type: "Income",
     },
     {
-      id: "Transportation Allowance",
+      id: "Income > Transportation Allowance",
       name: "Transportation Allowance",
-      parentId: null,
+      parentId: "Income",
       type: "Income",
     },
     {
-      id: "Housing Allowance",
+      id: "Income > Housing Allowance",
       name: "Housing Allowance",
-      parentId: null,
+      parentId: "Income",
       type: "Income",
     },
 
-    // ---- Expenses ----
-    { id: "Food & Drinks", name: "Food & Drinks", parentId: null, type: "Expense" },
+    // EXPENSES
+    {
+      id: "Food & Drinks",
+      name: "Food & Drinks",
+      parentId: null,
+      type: "Expense",
+    },
     {
       id: "Food & Drinks > Groceries",
       name: "Groceries",
@@ -90,14 +98,14 @@ function loadSampleData() {
     },
   ];
 
-  // Transactions
+  // Transactions (one month’s toy data)
   state.transactions = [
     {
       id: 1,
       date: "2025-10-01",
       description: "September Salary",
       amount: 16000,
-      categoryId: "Base Salary",
+      categoryId: "Income > Base Salary",
       labels: ["Work"],
     },
     {
@@ -126,57 +134,80 @@ function loadSampleData() {
     },
   ];
 
-  state.nextTxId = 5;
+  rebuildCategoryLookups();
 }
 
-// ========================= INIT =========================
-
-function init() {
-  console.log("init() starting");
-
-  loadSampleData();
-  setupTabs();
-  setupPeriodFilter();
-  setupCategoryEditor();
-  setupImport();
-
-  renderAll();
-
-  console.log("init() finished");
-}
-
-function renderAll() {
-  renderIncomeStatement();
-  renderTransactionsTable();
-  renderCategoryTree();
-}
-
-// ========================= TAB HANDLING =========================
-
-function setupTabs() {
-  var tabButtons = document.querySelectorAll("[data-tab-target]");
-  var tabPanels = document.querySelectorAll(".tab-panel");
-
-  if (!tabButtons.length || !tabPanels.length) return;
-
-  tabButtons.forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      var target = btn.getAttribute("data-tab-target");
-      tabButtons.forEach(function (b) {
-        b.classList.toggle("tab-button--active", b === btn);
-      });
-      tabPanels.forEach(function (panel) {
-        panel.classList.toggle(
-          "tab-panel--active",
-          panel.getAttribute("data-tab") === target
-        );
-      });
-    });
+// ========== LOOKUP HELPERS ==========
+function rebuildCategoryLookups() {
+  categoryById = {};
+  ancestorsCache = {};
+  state.categories.forEach(function (c) {
+    categoryById[c.id] = c;
   });
 }
 
-// ========================= PERIOD FILTER =========================
+function getCategoryById(id) {
+  return categoryById[id] || null;
+}
 
+function getAncestorsIncludingSelf(catId) {
+  if (!catId) return [];
+  if (ancestorsCache[catId]) return ancestorsCache[catId].slice();
+
+  var result = [];
+  var current = categoryById[catId];
+  while (current) {
+    result.push(current.id);
+    current = current.parentId ? categoryById[current.parentId] : null;
+  }
+  ancestorsCache[catId] = result.slice();
+  return result;
+}
+
+// ========== INIT ==========
+function init() {
+  console.log("DOMContentLoaded fired");
+  loadSampleData();
+  setupTabs();
+  setupPeriodFilter();
+  setupCategoryEditors();
+  setupImport();
+
+  renderCategoryTrees();
+  renderTransactionsTable();
+  renderIncomeStatement();
+  console.log("init() finished");
+}
+
+// ========== TABS ==========
+function setupTabs() {
+  var buttons = document.querySelectorAll(".tab-button");
+  var panels = document.querySelectorAll(".tab-content");
+
+  function activateTab(id) {
+    panels.forEach(function (p) {
+      p.classList.toggle("tab-content--active", p.id === id);
+    });
+    buttons.forEach(function (b) {
+      b.classList.toggle(
+        "tab-button--active",
+        b.getAttribute("data-tab-target") === id
+      );
+    });
+  }
+
+  buttons.forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var target = btn.getAttribute("data-tab-target");
+      activateTab(target);
+    });
+  });
+
+  // Default: dashboard
+  activateTab("tab-dashboard");
+}
+
+// ========== PERIOD FILTER (DASHBOARD) ==========
 function setupPeriodFilter() {
   var select = document.getElementById("period-select");
   var customRange = document.getElementById("custom-range");
@@ -193,109 +224,74 @@ function setupPeriodFilter() {
       customRange.classList.add("hidden");
       state.dateFilter.from = null;
       state.dateFilter.to = null;
-      renderAll();
+      rerenderAll();
     }
   });
 
   if (fromInput) {
     fromInput.addEventListener("change", function () {
       state.dateFilter.from = fromInput.value || null;
-      renderAll();
+      rerenderAll();
     });
   }
 
   if (toInput) {
     toInput.addEventListener("change", function () {
       state.dateFilter.to = toInput.value || null;
-      renderAll();
+      rerenderAll();
     });
   }
 
   select.value = state.dateFilter.mode;
 }
 
-// ========================= CATEGORY EDITOR =========================
+// ========== CATEGORY EDITORS ==========
+function setupCategoryEditors() {
+  console.log("setupCategoryEditors");
+  var incomeEditor = document.getElementById("income-editor");
+  var expenseEditor = document.getElementById("expense-editor");
+  var btn = document.getElementById("update-categories");
 
-function setupCategoryEditor() {
-  var editor = document.getElementById("categories-editor");
-  var applyBtn = document.getElementById("apply-categories");
+  if (!incomeEditor || !expenseEditor || !btn) {
+    console.log("Category editor elements missing");
+    return;
+  }
 
-  if (!editor || !applyBtn) return;
+  // Prefill editors
+  incomeEditor.value = buildCategoriesTextForType("Income");
+  expenseEditor.value = buildCategoriesTextForType("Expense");
 
-  editor.value = buildCategoriesTextFromState();
+  btn.addEventListener("click", function () {
+    console.log("Update categories clicked");
 
-  applyBtn.addEventListener("click", function () {
-    var text = editor.value || "";
-    var cats = parseCategoriesText(text);
-    if (!cats.length) {
-      alert("No valid categories found. Please check your list.");
+    var incomeText = incomeEditor.value || "";
+    var expenseText = expenseEditor.value || "";
+
+    var incomeCats = parseCategoriesText(incomeText, "Income");
+    var expenseCats = parseCategoriesText(expenseText, "Expense");
+
+    var all = incomeCats.concat(expenseCats);
+    if (!all.length) {
+      alert("No valid categories found. Please check your lists.");
       return;
     }
-    state.categories = cats;
-    renderAll();
-    alert("Categories updated: " + cats.length);
+
+    state.categories = all;
+    rebuildCategoryLookups();
+    renderCategoryTrees();
+    rerenderAll();
+    alert("Categories updated: " + all.length);
   });
 }
 
-// dashed text -> state.categories
-function parseCategoriesText(text) {
-  if (!text || !text.trim()) return [];
-
-  var rawLines = text.split("\n");
-  var lines = [];
-  rawLines.forEach(function (l) {
-    var line = l.replace(/\r/g, "");
-    if (line.trim() !== "") lines.push(line);
+function buildCategoriesTextForType(type) {
+  var filtered = state.categories.filter(function (c) {
+    return c.type === type;
   });
-
-  var resultsWithMeta = [];
-  var lastByLevel = {};
-
-  lines.forEach(function (line) {
-    var trimmedLine = line.replace(/^\s+/, "");
-    var match = trimmedLine.match(/^(-*)(.*)$/);
-    if (!match) return;
-
-    var dashes = match[1].length;
-    var rawName = match[2].trim();
-    if (!rawName) return;
-
-    var level = dashes;
-    var parentMeta = level === 0 ? null : lastByLevel[level - 1] || null;
-    var parentId = parentMeta ? parentMeta.id : null;
-    var fullId = parentMeta ? parentMeta.id + " > " + rawName : rawName;
-    var type = inferCategoryType(rawName, parentMeta);
-
-    var node = {
-      id: fullId,
-      name: rawName,
-      parentId: parentId,
-      type: type,
-      level: level,
-    };
-
-    resultsWithMeta.push(node);
-    lastByLevel[level] = node;
-  });
-
-  var finalCats = resultsWithMeta.map(function (n) {
-    return {
-      id: n.id,
-      name: n.name,
-      parentId: n.parentId,
-      type: n.type,
-    };
-  });
-
-  return finalCats;
-}
-
-// state.categories -> dashed text
-function buildCategoriesTextFromState() {
-  if (!state.categories.length) return "";
+  if (!filtered.length) return "";
 
   var childrenMap = {};
-  state.categories.forEach(function (c) {
+  filtered.forEach(function (c) {
     var key = c.parentId || "root";
     if (!childrenMap[key]) childrenMap[key] = [];
     childrenMap[key].push(c);
@@ -310,8 +306,8 @@ function buildCategoriesTextFromState() {
     });
   }
 
-  var lines = [];
   var roots = childrenMap["root"] || [];
+  var lines = [];
   roots.forEach(function (root) {
     walk(root, 0, lines);
   });
@@ -319,309 +315,126 @@ function buildCategoriesTextFromState() {
   return lines.join("\n");
 }
 
-// Simple heuristic: detect Income vs Expense
-function inferCategoryType(name, parentMeta) {
-  var parentName = parentMeta ? parentMeta.name : "";
-  var text = (parentName + " " + name).toLowerCase();
-  if (
-    text.indexOf("income") >= 0 ||
-    text.indexOf("salary") >= 0 ||
-    text.indexOf("bonus") >= 0 ||
-    text.indexOf("allowance") >= 0 ||
-    text.indexOf("cashback") >= 0 ||
-    text.indexOf("per diem") >= 0 ||
-    text.indexOf("interest") >= 0
-  ) {
-    return "Income";
-  }
-  return "Expense";
+function parseCategoriesText(text, forcedType) {
+  if (!text || !text.trim()) return [];
+
+  var rawLines = text.split("\n");
+  var lines = [];
+  rawLines.forEach(function (l) {
+    var line = l.replace(/\r/g, "");
+    if (line.trim() !== "") lines.push(line);
+  });
+
+  var categoriesWithMeta = [];
+  var lastByLevel = {};
+
+  lines.forEach(function (line) {
+    var trimmedLine = line.replace(/^\s+/, "");
+    var match = trimmedLine.match(/^(-*)(.*)$/);
+    if (!match) return;
+
+    var dashes = match[1].length;
+    var rawName = match[2].trim();
+    if (!rawName) return;
+
+    var level = dashes;
+    var parentMeta = level === 0 ? null : lastByLevel[level - 1] || null;
+    var path = parentMeta ? parentMeta.path + " > " + rawName : rawName;
+    var id = path;
+    var parentId = parentMeta ? parentMeta.id : null;
+
+    var cat = {
+      id: id,
+      name: rawName,
+      parentId: parentId,
+      type: forcedType,
+      path: path,
+      level: level,
+    };
+
+    categoriesWithMeta.push(cat);
+    lastByLevel[level] = cat;
+  });
+
+  var result = [];
+  categoriesWithMeta.forEach(function (c) {
+    result.push({
+      id: c.id,
+      name: c.name,
+      parentId: c.parentId,
+      type: c.type,
+    });
+  });
+
+  return result;
 }
 
-// ========================= CATEGORY TREE (visual only) =========================
-
-function renderCategoryTree() {
-  var incomeContainer = document.getElementById("income-category-tree");
-  var expenseContainer = document.getElementById("expense-category-tree");
+// ========== CATEGORY TREES (VISUAL) ==========
+function renderCategoryTrees() {
+  var incomeContainer = document.getElementById("income-tree");
+  var expenseContainer = document.getElementById("expense-tree");
   if (!incomeContainer || !expenseContainer) return;
 
   incomeContainer.innerHTML = "";
   expenseContainer.innerHTML = "";
 
-  var incomeCats = state.categories.filter(function (c) {
-    return c.type === "Income";
-  });
-  var expenseCats = state.categories.filter(function (c) {
-    return c.type === "Expense";
-  });
+  ["Income", "Expense"].forEach(function (type) {
+    var container = type === "Income" ? incomeContainer : expenseContainer;
+    var filtered = state.categories.filter(function (c) {
+      return c.type === type;
+    });
 
-  renderCategoryTreeForType(incomeContainer, incomeCats);
-  renderCategoryTreeForType(expenseContainer, expenseCats);
+    var childrenMap = {};
+    filtered.forEach(function (c) {
+      var key = c.parentId || "root";
+      if (!childrenMap[key]) childrenMap[key] = [];
+      childrenMap[key].push(c);
+    });
+
+    var roots = childrenMap["root"] || [];
+    roots.forEach(function (root) {
+      renderCategoryNode(container, root, childrenMap, root.name, 0);
+    });
+  });
 }
 
-function renderCategoryTreeForType(container, cats) {
-  var childrenMap = {};
-  cats.forEach(function (c) {
-    var key = c.parentId || "root";
-    if (!childrenMap[key]) childrenMap[key] = [];
-    childrenMap[key].push(c);
-  });
+function renderCategoryNode(container, node, childrenMap, path, level) {
+  var children = childrenMap[node.id] || [];
+  var hasChildren = children.length > 0;
 
-  var roots = childrenMap["root"] || [];
+  var div = document.createElement("div");
+  div.className = "category-node";
+  div.style.paddingLeft = 12 + level * 16 + "px";
 
-  function renderNode(node, level) {
-    var row = document.createElement("div");
-    row.className = "category-tree__row";
-    row.style.paddingLeft = 16 * level + "px";
-    row.textContent = node.name;
-    container.appendChild(row);
+  var label = document.createElement("div");
+  label.className = "category-node__label";
+  label.textContent = node.name;
 
-    var children = childrenMap[node.id] || [];
+  var pathEl = document.createElement("div");
+  pathEl.className = "category-node__path";
+  pathEl.textContent = path;
+
+  div.appendChild(label);
+  if (path !== node.name) {
+    div.appendChild(pathEl);
+  }
+
+  container.appendChild(div);
+
+  if (hasChildren) {
     children.forEach(function (child) {
-      renderNode(child, level + 1);
+      renderCategoryNode(
+        container,
+        child,
+        childrenMap,
+        path + " › " + child.name,
+        level + 1
+      );
     });
   }
-
-  roots.forEach(function (root) {
-    renderNode(root, 0);
-  });
 }
 
-// ========================= INCOME STATEMENT =========================
-
-function renderIncomeStatement() {
-  var container = document.getElementById("income-statement");
-  if (!container) return;
-  container.innerHTML = "";
-
-  var filtered = getFilteredTransactions();
-
-  var totals = computeIncomeExpenseTotals(filtered);
-  var incomeTotal = totals.income; // >=0
-  var expenseTotal = totals.expense; // <=0
-  var expenseAbs = Math.abs(expenseTotal);
-  var net = incomeTotal + expenseTotal;
-  var savingRate =
-    incomeTotal > 0 ? (net / incomeTotal) * 100 : null;
-
-  // Summary line (income, expenses, net, saving rate)
-  var summary = document.createElement("div");
-  summary.className = "income-summary";
-  summary.innerHTML =
-    '<span>Total income: <strong>' +
-    formatAmount(incomeTotal) +
-    "</strong></span>" +
-    '<span>Total expenses: <strong>' +
-    formatAmount(expenseAbs) +
-    "</strong></span>" +
-    '<span>Net: <strong class="' +
-    (net >= 0 ? "value-positive" : "value-negative") +
-    '">' +
-    formatAmount(net) +
-    "</strong></span>" +
-    '<span>Saving rate: <strong>' +
-    (savingRate === null ? "—" : formatPercent(savingRate)) +
-    "</strong></span>";
-  container.appendChild(summary);
-
-  // Build hierarchical aggregates for income & expenses
-  var incomeAgg = aggregateByCategoryType(filtered, "Income");
-  var expenseAgg = aggregateByCategoryType(filtered, "Expense");
-
-  // ----- Income table -----
-  var incomeSection = document.createElement("div");
-  incomeSection.className = "income-section";
-
-  var incomeTitle = document.createElement("h3");
-  incomeTitle.textContent = "Income";
-  incomeSection.appendChild(incomeTitle);
-
-  var incomeTable = document.createElement("table");
-  incomeTable.className = "statement-table";
-
-  var thead = document.createElement("thead");
-  thead.innerHTML =
-    "<tr>" +
-    "<th class='col-category'>Category</th>" +
-    "<th class='col-amount'>Amount</th>" +
-    "<th class='col-percent'>% of income</th>" +
-    "</tr>";
-  incomeTable.appendChild(thead);
-
-  var tbody = document.createElement("tbody");
-  incomeAgg.rows.forEach(function (row) {
-    if (Math.abs(row.amount) < 0.005) return; // skip zeros
-    var tr = document.createElement("tr");
-
-    var catTd = document.createElement("td");
-    catTd.className = "col-category";
-    catTd.style.paddingLeft = 16 * row.level + "px";
-    catTd.textContent = row.name;
-
-    var amtTd = document.createElement("td");
-    amtTd.className =
-      "col-amount " + (row.amount >= 0 ? "value-positive" : "value-negative");
-    amtTd.textContent = formatAmount(row.amount);
-
-    var pctIncome =
-      incomeTotal > 0 ? (row.amount / incomeTotal) * 100 : 0;
-    var pctIncomeTd = document.createElement("td");
-    pctIncomeTd.className = "col-percent";
-    pctIncomeTd.textContent = formatPercent(pctIncome);
-
-    tr.appendChild(catTd);
-    tr.appendChild(amtTd);
-    tr.appendChild(pctIncomeTd);
-    tbody.appendChild(tr);
-  });
-  incomeTable.appendChild(tbody);
-  incomeSection.appendChild(incomeTable);
-
-  // ----- Expenses table -----
-  var expenseSection = document.createElement("div");
-  expenseSection.className = "expense-section";
-
-  var expenseTitle = document.createElement("h3");
-  expenseTitle.textContent = "Expenses";
-  expenseSection.appendChild(expenseTitle);
-
-  var expTable = document.createElement("table");
-  expTable.className = "statement-table";
-
-  var expHead = document.createElement("thead");
-  expHead.innerHTML =
-    "<tr>" +
-    "<th class='col-category'>Category</th>" +
-    "<th class='col-amount'>Amount</th>" +
-    "<th class='col-percent'>% of income</th>" +
-    "<th class='col-percent'>% of expenses</th>" +
-    "</tr>";
-  expTable.appendChild(expHead);
-
-  var expBody = document.createElement("tbody");
-  expenseAgg.rows.forEach(function (row) {
-    if (Math.abs(row.amount) < 0.005) return;
-    var tr = document.createElement("tr");
-
-    var catTd = document.createElement("td");
-    catTd.className = "col-category";
-    catTd.style.paddingLeft = 16 * row.level + "px";
-    catTd.textContent = row.name;
-
-    var amtTd = document.createElement("td");
-    amtTd.className =
-      "col-amount " + (row.amount >= 0 ? "value-positive" : "value-negative");
-    amtTd.textContent = formatAmount(row.amount);
-
-    // For % of income, use absolute expenses vs income (positive)
-    var pctIncome =
-      incomeTotal > 0 ? (Math.abs(row.amount) / incomeTotal) * 100 : 0;
-    var pctIncomeTd = document.createElement("td");
-    pctIncomeTd.className =
-      "col-percent " + (row.amount >= 0 ? "value-positive" : "value-negative");
-    pctIncomeTd.textContent = formatPercent(pctIncome);
-
-    // For % of expenses, sign shows inflow vs outflow
-    var pctExp = expenseAbs > 0 ? (row.amount / expenseTotal) * 100 : 0; // expenseTotal is negative
-    var pctExpTd = document.createElement("td");
-    pctExpTd.className =
-      "col-percent " + (pctExp >= 0 ? "value-positive" : "value-negative");
-    pctExpTd.textContent = formatPercent(pctExp);
-
-    tr.appendChild(catTd);
-    tr.appendChild(amtTd);
-    tr.appendChild(pctIncomeTd);
-    tr.appendChild(pctExpTd);
-    expBody.appendChild(tr);
-  });
-  expTable.appendChild(expBody);
-  expenseSection.appendChild(expTable);
-
-  // Append both sections
-  container.appendChild(incomeSection);
-  container.appendChild(expenseSection);
-}
-
-// Compute total income / total expenses for a set of transactions
-function computeIncomeExpenseTotals(transactions) {
-  var income = 0;
-  var expense = 0;
-
-  transactions.forEach(function (tx) {
-    var cat = getCategory(tx.categoryId);
-    var type = cat ? cat.type : tx.amount >= 0 ? "Income" : "Expense";
-    if (type === "Income") {
-      income += tx.amount;
-    } else {
-      expense += tx.amount;
-    }
-  });
-
-  return { income: income, expense: expense };
-}
-
-// Build hierarchical aggregates for a specific type
-function aggregateByCategoryType(transactions, type) {
-  var sums = {}; // categoryId -> amount
-
-  // Parent lookup
-  var catsOfType = state.categories.filter(function (c) {
-    return c.type === type;
-  });
-  var catMap = {};
-  catsOfType.forEach(function (c) {
-    catMap[c.id] = c;
-  });
-
-  function addToCategoryAndAncestors(cat, amount) {
-    var current = cat;
-    while (current && current.type === type) {
-      sums[current.id] = (sums[current.id] || 0) + amount;
-      current = current.parentId ? catMap[current.parentId] : null;
-    }
-  }
-
-  transactions.forEach(function (tx) {
-    var cat = getCategory(tx.categoryId);
-    var txType = cat ? cat.type : tx.amount >= 0 ? "Income" : "Expense";
-    if (!cat || txType !== type) return;
-    addToCategoryAndAncestors(cat, tx.amount);
-  });
-
-  // Build tree, determine levels
-  var childrenMap = {};
-  catsOfType.forEach(function (c) {
-    var key = c.parentId || "root";
-    if (!childrenMap[key]) childrenMap[key] = [];
-    childrenMap[key].push(c);
-  });
-
-  var rows = [];
-  function visit(node, level) {
-    var amount = sums[node.id] || 0;
-    if (Math.abs(amount) >= 0.005) {
-      rows.push({
-        id: node.id,
-        name: node.name,
-        level: level,
-        amount: amount,
-      });
-    }
-    var children = childrenMap[node.id] || [];
-    children.forEach(function (child) {
-      visit(child, level + 1);
-    });
-  }
-
-  var roots = childrenMap["root"] || [];
-  roots.forEach(function (root) {
-    visit(root, 0);
-  });
-
-  return { rows: rows };
-}
-
-// ========================= TRANSACTIONS TABLE =========================
-
+// ========== TRANSACTIONS TABLE ==========
 function renderTransactionsTable() {
   var tbody = document.getElementById("transactions-body");
   if (!tbody) return;
@@ -629,7 +442,6 @@ function renderTransactionsTable() {
 
   var filtered = getFilteredTransactions();
 
-  // newest first
   filtered.sort(function (a, b) {
     return a.date < b.date ? 1 : a.date > b.date ? -1 : 0;
   });
@@ -638,6 +450,7 @@ function renderTransactionsTable() {
     var tr = document.createElement("tr");
 
     var selectTd = document.createElement("td");
+    selectTd.className = "tx-col-select";
     var cb = document.createElement("input");
     cb.type = "checkbox";
     cb.className = "tx-select";
@@ -651,9 +464,9 @@ function renderTransactionsTable() {
     descTd.textContent = tx.description;
 
     var amountTd = document.createElement("td");
-    amountTd.className =
-      tx.amount >= 0 ? "value-positive" : "value-negative";
     amountTd.textContent = formatAmount(tx.amount);
+    amountTd.className =
+      "tx-amount " + (tx.amount < 0 ? "amount-negative" : "amount-positive");
 
     var catTd = document.createElement("td");
     catTd.textContent = getCategoryName(tx.categoryId);
@@ -672,15 +485,272 @@ function renderTransactionsTable() {
   });
 }
 
-// ========================= IMPORT (CSV) =========================
+// ========== INCOME STATEMENT ==========
+function renderIncomeStatement() {
+  var container = document.getElementById("income-statement");
+  if (!container) return;
+  container.innerHTML = "";
 
+  var filtered = getFilteredTransactions();
+
+  if (!filtered.length) {
+    container.textContent = "No transactions in the selected period.";
+    return;
+  }
+
+  // Aggregate amounts per category (including ancestors)
+  var incomeAgg = {};
+  var expenseAgg = {};
+
+  filtered.forEach(function (tx) {
+    var cat = getCategoryById(tx.categoryId);
+    var type =
+      cat && cat.type
+        ? cat.type
+        : tx.amount >= 0
+        ? "Income"
+        : "Expense";
+
+    var agg = type === "Income" ? incomeAgg : expenseAgg;
+
+    if (cat) {
+      var ids = getAncestorsIncludingSelf(cat.id);
+      ids.forEach(function (id) {
+        agg[id] = (agg[id] || 0) + tx.amount;
+      });
+    } else {
+      var key = type === "Income" ? "__unassigned_income" : "__unassigned_expense";
+      agg[key] = (agg[key] || 0) + tx.amount;
+    }
+  });
+
+  // Create pseudo categories for unassigned if needed
+  if (incomeAgg["__unassigned_income"]) {
+    state.categories.push({
+      id: "__unassigned_income",
+      name: "Uncategorised income",
+      parentId: null,
+      type: "Income",
+    });
+    rebuildCategoryLookups();
+  }
+  if (expenseAgg["__unassigned_expense"]) {
+    state.categories.push({
+      id: "__unassigned_expense",
+      name: "Uncategorised expenses",
+      parentId: null,
+      type: "Expense",
+    });
+    rebuildCategoryLookups();
+  }
+
+  // Totals
+  var totalIncome = 0;
+  var totalExpenses = 0;
+
+  Object.keys(incomeAgg).forEach(function (id) {
+    var cat = getCategoryById(id);
+    if (cat && cat.parentId === null && cat.type === "Income") {
+      totalIncome += incomeAgg[id];
+    }
+  });
+  Object.keys(expenseAgg).forEach(function (id) {
+    var cat = getCategoryById(id);
+    if (cat && cat.parentId === null && cat.type === "Expense") {
+      totalExpenses += expenseAgg[id];
+    }
+  });
+
+  var net = totalIncome + totalExpenses;
+  var savingRate = totalIncome ? (net / totalIncome) * 100 : null;
+
+  // Summary line
+  var summary = document.createElement("div");
+  summary.className = "summary-line";
+  summary.innerHTML =
+    "Total income: <span class='amount-positive'>" +
+    formatAmount(totalIncome) +
+    "</span> | Total expenses: <span class='" +
+    (totalExpenses < 0 ? "amount-negative" : "amount-positive") +
+    "'>" +
+    formatAmount(totalExpenses) +
+    "</span> | Net: <span class='" +
+    (net < 0 ? "amount-negative" : "amount-positive") +
+    "'>" +
+    formatAmount(net) +
+    "</span>" +
+    (savingRate !== null
+      ? " | Saving rate: <span>" + savingRate.toFixed(2) + "%</span>"
+      : "");
+  container.appendChild(summary);
+
+  // Income section
+  var incomeSection = document.createElement("div");
+  incomeSection.className = "panel-section";
+
+  var inTitle = document.createElement("h3");
+  inTitle.textContent = "Income";
+  incomeSection.appendChild(inTitle);
+
+  var incomeTable = document.createElement("table");
+  incomeTable.className = "statement-table";
+  var inHead = document.createElement("thead");
+  inHead.innerHTML =
+    "<tr><th>Category</th><th class='col-amount'>Amount</th><th class='col-percent'>% of income</th></tr>";
+  incomeTable.appendChild(inHead);
+  var inBody = document.createElement("tbody");
+  incomeTable.appendChild(inBody);
+  incomeSection.appendChild(incomeTable);
+  container.appendChild(incomeSection);
+
+  // Expense section
+  var expenseSection = document.createElement("div");
+  expenseSection.className = "panel-section panel-section--spaced";
+
+  var exTitle = document.createElement("h3");
+  exTitle.textContent = "Expenses";
+  expenseSection.appendChild(exTitle);
+
+  var expenseTable = document.createElement("table");
+  expenseTable.className = "statement-table";
+  var exHead = document.createElement("thead");
+  exHead.innerHTML =
+    "<tr><th>Category</th><th class='col-amount'>Amount</th><th class='col-percent'>% of income</th><th class='col-percent'>% of expenses</th></tr>";
+  expenseTable.appendChild(exHead);
+  var exBody = document.createElement("tbody");
+  expenseTable.appendChild(exBody);
+  expenseSection.appendChild(expenseTable);
+  container.appendChild(expenseSection);
+
+  // Render trees
+  renderStatementGroup("Income", incomeAgg, totalIncome, inBody);
+  renderStatementGroup("Expense", expenseAgg, totalExpenses, exBody, totalIncome);
+}
+
+function renderStatementGroup(
+  type,
+  agg,
+  totalForType,
+  tbody,
+  totalIncomeForExpenses
+) {
+  var cats = state.categories.filter(function (c) {
+    return c.type === type;
+  });
+
+  var childrenMap = {};
+  cats.forEach(function (c) {
+    var key = c.parentId || "root";
+    if (!childrenMap[key]) childrenMap[key] = [];
+    childrenMap[key].push(c);
+  });
+
+  var roots = childrenMap["root"] || [];
+
+  roots.forEach(function (root) {
+    renderStatementNode(
+      root,
+      0,
+      agg,
+      totalForType,
+      totalIncomeForExpenses,
+      tbody,
+      childrenMap,
+      type
+    );
+  });
+}
+
+function renderStatementNode(
+  cat,
+  level,
+  agg,
+  totalForType,
+  totalIncomeForExpenses,
+  tbody,
+  childrenMap,
+  type
+) {
+  var amount = agg[cat.id] || 0;
+  if (amount === 0) {
+    // skip categories with no activity
+    var children = childrenMap[cat.id] || [];
+    children.forEach(function (child) {
+      renderStatementNode(
+        child,
+        level + 1,
+        agg,
+        totalForType,
+        totalIncomeForExpenses,
+        tbody,
+        childrenMap,
+        type
+      );
+    });
+    return;
+  }
+
+  var tr = document.createElement("tr");
+
+  var nameTd = document.createElement("td");
+  nameTd.textContent = cat.name;
+  nameTd.style.paddingLeft = 12 + level * 16 + "px";
+  tr.appendChild(nameTd);
+
+  var amountTd = document.createElement("td");
+  amountTd.className =
+    "col-amount " +
+    (amount < 0 ? "amount-negative" : "amount-positive");
+  amountTd.textContent = formatAmount(amount);
+  tr.appendChild(amountTd);
+
+  var percentOfIncomeTd = document.createElement("td");
+  percentOfIncomeTd.className = "col-percent";
+  var divBase =
+    type === "Income" ? totalForType : totalIncomeForExpenses || 0;
+  var pctIncome =
+    divBase ? ((amount / divBase) * 100).toFixed(2) + "%" : "-";
+  percentOfIncomeTd.textContent = pctIncome;
+  tr.appendChild(percentOfIncomeTd);
+
+  if (type === "Expense") {
+    var percentOfExpensesTd = document.createElement("td");
+    percentOfExpensesTd.className = "col-percent";
+    var pctExp =
+      totalForType ? ((amount / totalForType) * 100).toFixed(2) + "%" : "-";
+    percentOfExpensesTd.textContent = pctExp;
+    tr.appendChild(percentOfExpensesTd);
+  }
+
+  tbody.appendChild(tr);
+
+  var children = childrenMap[cat.id] || [];
+  children.forEach(function (child) {
+    renderStatementNode(
+      child,
+      level + 1,
+      agg,
+      totalForType,
+      totalIncomeForExpenses,
+      tbody,
+      childrenMap,
+      type
+    );
+  });
+}
+
+// ========== IMPORT (CSV) ==========
 function setupImport() {
+  console.log("setupImport");
   var fileInput = document.getElementById("import-file");
   var clearCheckbox = document.getElementById("import-clear-existing");
   var button = document.getElementById("import-button");
   var statusEl = document.getElementById("import-status");
 
-  if (!fileInput || !button || !statusEl) return;
+  if (!fileInput || !button || !statusEl) {
+    console.log("Import elements missing");
+    return;
+  }
 
   button.addEventListener("click", function () {
     var file = fileInput.files[0];
@@ -702,11 +772,14 @@ function setupImport() {
           return;
         }
 
-        var maxId = state.nextTxId || 1;
-        imported.forEach(function (tx, idx) {
-          tx.id = maxId + idx;
+        var maxId = 0;
+        state.transactions.forEach(function (t) {
+          if (typeof t.id === "number" && t.id > maxId) maxId = t.id;
         });
-        state.nextTxId = maxId + imported.length;
+
+        imported.forEach(function (tx, idx) {
+          tx.id = maxId + idx + 1;
+        });
 
         if (clearCheckbox && clearCheckbox.checked) {
           state.transactions = imported;
@@ -714,7 +787,7 @@ function setupImport() {
           state.transactions = state.transactions.concat(imported);
         }
 
-        renderAll();
+        rerenderAll();
         statusEl.textContent =
           "Imported " + imported.length + " transactions successfully.";
       } catch (err) {
@@ -731,7 +804,6 @@ function setupImport() {
   });
 }
 
-// Very lightweight CSV parser for PocketSmith-like exports
 function parsePocketSmithCsv(csvText) {
   if (!csvText || !csvText.trim()) return [];
 
@@ -755,19 +827,30 @@ function parsePocketSmithCsv(csvText) {
 
   var idxDate = idx(["date"]);
   var idxDesc = idx(["description", "merchant", "memo"]);
-  var idxConvAmt = idx(["amount in base currency", "amount (account)", "amount"]);
+  var idxConvAmt = idx([
+    "amount in base currency",
+    "amount (account)",
+    "amount",
+  ]);
   var idxCategory = idx(["category"]);
-  var idxLabels = idx(["labels", "tags"]);
 
   if (idxDate === -1 || idxDesc === -1 || idxConvAmt === -1) {
-    throw new Error("CSV headers not recognised (need at least Date, Description, Amount).");
+    throw new Error(
+      "CSV headers not recognised (need at least Date, Description, Amount)."
+    );
   }
 
   var txs = [];
 
   for (var i = 1; i < lines.length; i++) {
     var row = splitCsvLine(lines[i]);
-    if (!row.length || row.every(function (c) { return !c.trim(); })) continue;
+    if (
+      !row.length ||
+      row.every(function (c) {
+        return !c.trim();
+      })
+    )
+      continue;
 
     function cell(index) {
       return index >= 0 && index < row.length ? row[index].trim() : "";
@@ -777,14 +860,10 @@ function parsePocketSmithCsv(csvText) {
     var description = cell(idxDesc);
     var convAmtStr = cell(idxConvAmt);
     var categoryName = cell(idxCategory);
-    var labelsStr = cell(idxLabels);
 
     var amount = parseNumber(convAmtStr);
     var isoDate = normaliseDate(rawDate);
-    var categoryId = ensureCategoryFromCsv(categoryName, amount);
-    var labels = labelsStr
-      ? labelsStr.split(/[;,]/).map(function (s) { return s.trim(); }).filter(Boolean)
-      : [];
+    var categoryId = ensureCategoryFromCsv(categoryName);
 
     txs.push({
       id: null,
@@ -792,7 +871,7 @@ function parsePocketSmithCsv(csvText) {
       description: description,
       amount: amount,
       categoryId: categoryId,
-      labels: labels,
+      labels: [],
     });
   }
 
@@ -855,31 +934,25 @@ function normaliseDate(s) {
   return s;
 }
 
-function ensureCategoryFromCsv(name, amount) {
-  var trimmed = (name || "").trim();
-  if (!trimmed) {
-    // fallback category by sign
-    trimmed = amount >= 0 ? "Uncategorised Income" : "Uncategorised Expense";
-  }
+function ensureCategoryFromCsv(name) {
+  if (!name) return null;
+  var trimmed = name.trim();
+  if (!trimmed) return null;
 
   var existing = state.categories.find(function (c) {
     return c.name === trimmed;
   });
   if (existing) return existing.id;
 
-  var type = inferCategoryType(trimmed, null);
-  var cat = {
-    id: trimmed,
-    name: trimmed,
-    parentId: null,
-    type: type,
-  };
+  // Default: treat as Expense if amount is negative later, but we don't know here.
+  var id = trimmed;
+  var cat = { id: id, name: trimmed, parentId: null, type: "Expense" };
   state.categories.push(cat);
-  return cat.id;
+  rebuildCategoryLookups();
+  return id;
 }
 
-// ========================= SHARED HELPERS =========================
-
+// ========== SHARED HELPERS ==========
 function getFilteredTransactions() {
   var mode = state.dateFilter.mode;
   var from = state.dateFilter.from;
@@ -907,15 +980,8 @@ function getFilteredTransactions() {
   });
 }
 
-function getCategory(id) {
-  if (!id) return null;
-  return state.categories.find(function (c) {
-    return c.id === id;
-  }) || null;
-}
-
 function getCategoryName(categoryId) {
-  var cat = getCategory(categoryId);
+  var cat = getCategoryById(categoryId);
   return cat ? cat.name : "Uncategorised";
 }
 
@@ -926,13 +992,10 @@ function formatAmount(amount) {
   });
 }
 
-function formatPercent(value) {
-  return Number(value || 0).toFixed(2) + "%";
+function rerenderAll() {
+  renderIncomeStatement();
+  renderTransactionsTable();
 }
 
-// ========================= BOOTSTRAP =========================
-
-document.addEventListener("DOMContentLoaded", function () {
-  console.log("DOMContentLoaded fired");
-  init();
-});
+// ========== BOOTSTRAP ==========
+document.addEventListener("DOMContentLoaded", init);
