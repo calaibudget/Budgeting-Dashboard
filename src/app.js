@@ -1,5 +1,7 @@
 console.log("App script loaded");
 
+// ---------- GLOBAL STATE ----------
+
 var state = {
   transactions: [],
   categories: [],
@@ -19,38 +21,78 @@ var state = {
     sortByDate: "desc"
   }
 };
-// Number formatter with thousands separator and 2 decimals
+
+var collapsedCategoryIds = new Set();
+var selectedTransactionIds = new Set();
+
+var txModalMode = "add"; // "add" | "duplicate"
+var txModalSourceTx = null;
+
+// number formatter with thousands separators
 var amountFormatter = new Intl.NumberFormat("en-US", {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2
 });
-// which parents are collapsed in the tree
-var collapsedCategoryIds = new Set();
-var selectedTransactionIds = new Set();
 
-// for transaction modal
-var txModalMode = "add"; // "add" | "duplicate"
-var txModalSourceTx = null;
+// ---------- SAMPLE DATA ----------
 
-// ===== SAMPLE DATA =====
 function loadSampleData() {
   console.log("Loading sample data...");
 
   state.categories = [
     { id: "Income", name: "Income", parentId: null, type: "Income" },
-    { id: "Income > Base Salary", name: "Base Salary", parentId: "Income", type: "Income" },
-    { id: "Income > Performance Bonus", name: "Performance Bonus", parentId: "Income", type: "Income" },
+    {
+      id: "Income > Base Salary",
+      name: "Base Salary",
+      parentId: "Income",
+      type: "Income"
+    },
+    {
+      id: "Income > Performance Bonus",
+      name: "Performance Bonus",
+      parentId: "Income",
+      type: "Income"
+    },
 
-    { id: "Food & Drinks", name: "Food & Drinks", parentId: null, type: "Expense" },
-    { id: "Food & Drinks > Groceries", name: "Groceries", parentId: "Food & Drinks", type: "Expense" },
-    { id: "Food & Drinks > Restaurants", name: "Restaurants", parentId: "Food & Drinks", type: "Expense" },
-    { id: "Food & Drinks > Food Delivery", name: "Food Delivery", parentId: "Food & Drinks", type: "Expense" },
+    {
+      id: "Food & Drinks",
+      name: "Food & Drinks",
+      parentId: null,
+      type: "Expense"
+    },
+    {
+      id: "Food & Drinks > Groceries",
+      name: "Groceries",
+      parentId: "Food & Drinks",
+      type: "Expense"
+    },
+    {
+      id: "Food & Drinks > Restaurants",
+      name: "Restaurants",
+      parentId: "Food & Drinks",
+      type: "Expense"
+    },
+    {
+      id: "Food & Drinks > Food Delivery",
+      name: "Food Delivery",
+      parentId: "Food & Drinks",
+      type: "Expense"
+    },
 
-    { id: "Life & Entertainment", name: "Life & Entertainment", parentId: null, type: "Expense" },
-    { id: "Life & Entertainment > Gifts", name: "Gifts", parentId: "Life & Entertainment", type: "Expense" }
+    {
+      id: "Life & Entertainment",
+      name: "Life & Entertainment",
+      parentId: null,
+      type: "Expense"
+    },
+    {
+      id: "Life & Entertainment > Gifts",
+      name: "Gifts",
+      parentId: "Life & Entertainment",
+      type: "Expense"
+    }
   ];
 
-  // transactions with original + converted amounts, account, labels
   state.transactions = [
     {
       id: 1,
@@ -103,22 +145,27 @@ function loadSampleData() {
   ];
 }
 
-// ===== INIT =====
+// ---------- INIT ----------
+
 function init() {
   console.log("Initialising app...");
   loadSampleData();
+
   setupPeriodFilter();
   setupCategoryEditorModal();
   setupTabHeaderVisibility();
+
   setupTransactionsUI();
   setupTransactionModal();
+
   renderTransactionsTable();
   renderIncomeStatement();
   renderAllCategoryTrees();
   refreshTransactionsFilterOptions();
 }
 
-// ===== PERIOD SELECTOR (Dashboard only) =====
+// ---------- PERIOD FILTER (dashboard only) ----------
+
 function setupPeriodFilter() {
   var select = document.getElementById("period-select");
   var customRange = document.getElementById("custom-range");
@@ -157,34 +204,32 @@ function setupPeriodFilter() {
   select.value = state.dateFilter.mode;
 }
 
-// hide period selector on Categories tab, show on others
+// show period selector only on Dashboard tab
 function setupTabHeaderVisibility() {
   var dashRadio = document.getElementById("tab-radio-dashboard");
   var txRadio = document.getElementById("tab-radio-transactions");
   var catRadio = document.getElementById("tab-radio-categories");
   var filters = document.querySelector(".top-bar__filters");
 
-  if (!dashRadio || !txRadio || !catRadio || !filters) {
-    console.log("Tab header visibility: elements not found");
-    return;
-  }
+  if (!dashRadio || !txRadio || !catRadio || !filters) return;
 
-function updateFiltersVisibility() {
-  // Show the period selector ONLY on the Dashboard tab
-  if (dashRadio.checked) {
-    filters.style.display = "flex";
-  } else {
-    filters.style.display = "none";
+  function updateFiltersVisibility() {
+    if (dashRadio.checked) {
+      filters.style.display = "flex";
+    } else {
+      filters.style.display = "none";
+    }
   }
-}
 
   dashRadio.addEventListener("change", updateFiltersVisibility);
   txRadio.addEventListener("change", updateFiltersVisibility);
   catRadio.addEventListener("change", updateFiltersVisibility);
+
   updateFiltersVisibility();
 }
 
-// ===== CATEGORY EDITOR MODAL =====
+// ---------- CATEGORY EDITOR MODAL ----------
+
 function setupCategoryEditorModal() {
   var openBtn = document.getElementById("open-category-editor");
   var modal = document.getElementById("category-editor-modal");
@@ -193,10 +238,7 @@ function setupCategoryEditorModal() {
   var applyBtn = document.getElementById("apply-categories");
   var backdrop = modal ? modal.querySelector(".modal-backdrop") : null;
 
-  if (!openBtn || !modal || !textarea || !cancelBtn || !applyBtn) {
-    console.log("Category editor modal elements not found");
-    return;
-  }
+  if (!openBtn || !modal || !textarea || !cancelBtn || !applyBtn) return;
 
   function openModal() {
     textarea.value = generateCategoriesTextFromState();
@@ -209,16 +251,11 @@ function setupCategoryEditorModal() {
 
   openBtn.addEventListener("click", openModal);
   cancelBtn.addEventListener("click", closeModal);
-  if (backdrop) {
-    backdrop.addEventListener("click", closeModal);
-  }
+  if (backdrop) backdrop.addEventListener("click", closeModal);
 
   applyBtn.addEventListener("click", function () {
     var text = textarea.value || "";
-    console.log("Apply categories clicked. Raw text:", text);
-
     var categories = parseCategoriesText(text);
-    console.log("Parsed categories:", categories);
 
     if (!categories.length) {
       alert("No valid categories found. Please check your list.");
@@ -227,6 +264,7 @@ function setupCategoryEditorModal() {
 
     state.categories = categories;
     collapsedCategoryIds.clear();
+
     renderAllCategoryTrees();
     refreshTransactionsFilterOptions();
     renderIncomeStatement();
@@ -236,11 +274,12 @@ function setupCategoryEditorModal() {
         categories.length +
         ". Check the tree on the Categories tab and the summary on the Dashboard."
     );
+
     closeModal();
   });
 }
 
-// current categories -> dashed text (ordered, with dashes)
+// state.categories -> dashed text in tree order
 function generateCategoriesTextFromState() {
   if (!state.categories.length) return "";
 
@@ -252,9 +291,11 @@ function generateCategoriesTextFromState() {
   });
 
   var lines = [];
+
   function dfs(cat, level) {
     var prefix = level > 0 ? Array(level + 1).join("-") : "";
     lines.push(prefix + cat.name);
+
     var children = childrenMap[cat.id] || [];
     children.forEach(function (child) {
       dfs(child, level + 1);
@@ -269,15 +310,13 @@ function generateCategoriesTextFromState() {
   return lines.join("\n");
 }
 
-// dashed text -> categories array, keeping order & parent relationships
+// dashed text -> category tree
 function parseCategoriesText(text) {
-  if (!text || !text.trim()) {
-    console.log("parseCategoriesText: empty text");
-    return [];
-  }
+  if (!text || !text.trim()) return [];
 
   var rawLines = text.split("\n");
   var lines = [];
+
   rawLines.forEach(function (l) {
     var line = l.replace(/\r/g, "");
     if (line.trim() !== "") lines.push(line);
@@ -315,8 +354,6 @@ function parseCategoriesText(text) {
     lastByLevel[level] = cat;
   });
 
-  console.log("parseCategoriesText: built", categoriesWithMeta.length, "nodes");
-
   var result = [];
   categoriesWithMeta.forEach(function (c) {
     result.push({
@@ -334,6 +371,7 @@ function parseCategoriesText(text) {
 function inferCategoryType(name, parentMeta) {
   var parentName = parentMeta ? parentMeta.name : "";
   var text = (parentName + " " + name).toLowerCase();
+
   if (
     text.indexOf("income") >= 0 ||
     text.indexOf("salary") >= 0 ||
@@ -343,10 +381,12 @@ function inferCategoryType(name, parentMeta) {
   ) {
     return "Income";
   }
+
   return "Expense";
 }
 
-// ===== CATEGORY TREE RENDERING (Categories tab only) =====
+// ---------- CATEGORY TREE RENDER ----------
+
 function renderAllCategoryTrees() {
   renderCategoryTreeInto("category-tree-tab");
 }
@@ -354,6 +394,7 @@ function renderAllCategoryTrees() {
 function renderCategoryTreeInto(containerId) {
   var container = document.getElementById(containerId);
   if (!container) return;
+
   container.innerHTML = "";
 
   if (!state.categories.length) {
@@ -381,15 +422,13 @@ function renderCategoryTreeInto(containerId) {
 
     var toggle = document.createElement("span");
     toggle.className = "category-row__toggle";
+
     if (hasChildren) {
       toggle.textContent = isCollapsed ? "▸" : "▾";
       toggle.addEventListener("click", function (e) {
         e.stopPropagation();
-        if (isCollapsed) {
-          collapsedCategoryIds.delete(cat.id);
-        } else {
-          collapsedCategoryIds.add(cat.id);
-        }
+        if (isCollapsed) collapsedCategoryIds.delete(cat.id);
+        else collapsedCategoryIds.add(cat.id);
         renderAllCategoryTrees();
       });
     } else {
@@ -403,11 +442,8 @@ function renderCategoryTreeInto(containerId) {
 
     var path = document.createElement("span");
     path.className = "category-row__path";
-    if (depth === 0) {
-      path.textContent = cat.type || "";
-    } else {
-      path.textContent = "";
-    }
+    if (depth === 0) path.textContent = cat.type || "";
+    else path.textContent = "";
 
     row.appendChild(toggle);
     row.appendChild(label);
@@ -427,7 +463,8 @@ function renderCategoryTreeInto(containerId) {
   });
 }
 
-// ===== TRANSACTIONS TAB UI =====
+// ---------- TRANSACTIONS TAB: UI SETUP ----------
+
 function setupTransactionsUI() {
   var searchInput = document.getElementById("tx-search");
   var accountSelect = document.getElementById("tx-filter-account");
@@ -512,9 +549,11 @@ function setupTransactionsUI() {
     deleteBtn.addEventListener("click", function () {
       if (!selectedTransactionIds.size) return;
       if (!confirm("Delete selected transactions?")) return;
+
       state.transactions = state.transactions.filter(function (tx) {
         return !selectedTransactionIds.has(tx.id);
       });
+
       selectedTransactionIds.clear();
       refreshTransactionsFilterOptions();
       renderTransactionsTable();
@@ -526,11 +565,13 @@ function setupTransactionsUI() {
     bulkCatBtn.addEventListener("click", function () {
       var catId = bulkCatSelect.value;
       if (!catId || catId === "none" || !selectedTransactionIds.size) return;
+
       state.transactions.forEach(function (tx) {
         if (selectedTransactionIds.has(tx.id)) {
           tx.categoryId = catId;
         }
       });
+
       renderTransactionsTable();
       renderIncomeStatement();
     });
@@ -540,6 +581,7 @@ function setupTransactionsUI() {
     bulkLabelBtn.addEventListener("click", function () {
       var label = (bulkLabelInput.value || "").trim();
       if (!label || !selectedTransactionIds.size) return;
+
       var lower = label.toLowerCase();
       state.transactions.forEach(function (tx) {
         if (!selectedTransactionIds.has(tx.id)) return;
@@ -549,6 +591,7 @@ function setupTransactionsUI() {
         });
         if (!exists) tx.labels.push(label);
       });
+
       bulkLabelInput.value = "";
       renderTransactionsTable();
       refreshTransactionsFilterOptions();
@@ -556,7 +599,7 @@ function setupTransactionsUI() {
   }
 }
 
-// build flat category list in tree-order for dropdowns
+// hierarchical category options with dashes
 function getCategoryOptionsFlat() {
   var result = [];
   if (!state.categories.length) return result;
@@ -569,11 +612,14 @@ function getCategoryOptionsFlat() {
   });
 
   function dfs(cat, depth, pathLabel) {
-    // Use dashes to show hierarchy: -Sub, --SubSub, etc.
     var prefix = depth > 0 ? Array(depth + 1).join("-") : "";
     var label = prefix + cat.name;
-
-    result.push({ id: cat.id, label: label, fullPath: pathLabel, depth: depth });
+    result.push({
+      id: cat.id,
+      label: label,
+      fullPath: pathLabel,
+      depth: depth
+    });
 
     var children = childrenMap[cat.id] || [];
     children.forEach(function (child) {
@@ -589,7 +635,7 @@ function getCategoryOptionsFlat() {
   return result;
 }
 
-// refresh account + category filter options & bulk category select
+// fill account & category filters + bulk category select
 function refreshTransactionsFilterOptions() {
   var accountSelect = document.getElementById("tx-filter-account");
   var categorySelect = document.getElementById("tx-filter-category");
@@ -601,15 +647,19 @@ function refreshTransactionsFilterOptions() {
   });
 
   if (accountSelect) {
-    var current = accountSelect.value;
+    var currentAcc = accountSelect.value;
     accountSelect.innerHTML = '<option value="all">All accounts</option>';
+
     accounts.forEach(function (acc) {
       var opt = document.createElement("option");
       opt.value = acc;
       opt.textContent = acc;
       accountSelect.appendChild(opt);
     });
-    if (current && current !== "all") accountSelect.value = current;
+
+    if (currentAcc && currentAcc !== "all") {
+      accountSelect.value = currentAcc;
+    }
   }
 
   var catOptions = getCategoryOptionsFlat();
@@ -618,6 +668,7 @@ function refreshTransactionsFilterOptions() {
     if (!select) return;
     var cur = select.value;
     select.innerHTML = "";
+
     if (includeAll) {
       var optAll = document.createElement("option");
       optAll.value = "all";
@@ -629,12 +680,14 @@ function refreshTransactionsFilterOptions() {
       optNone.textContent = "Select category";
       select.appendChild(optNone);
     }
+
     catOptions.forEach(function (c) {
       var opt = document.createElement("option");
       opt.value = c.id;
       opt.textContent = c.label;
       select.appendChild(opt);
     });
+
     if (cur) select.value = cur;
   }
 
@@ -642,7 +695,8 @@ function refreshTransactionsFilterOptions() {
   fillCategorySelect(bulkCatSelect, false);
 }
 
-// ===== TRANSACTION MODAL (add / duplicate) =====
+// ---------- TRANSACTION MODAL ----------
+
 function setupTransactionModal() {
   var modal = document.getElementById("transaction-editor-modal");
   if (!modal) return;
@@ -662,18 +716,21 @@ function setupTransactionModal() {
     saveBtn.addEventListener("click", function () {
       var date = document.getElementById("tx-modal-date").value;
       var desc = document.getElementById("tx-modal-description").value;
+
       var oAmt = parseFloat(
         document.getElementById("tx-modal-original-amount").value || "0"
       );
-      var oCur = document.getElementById("tx-modal-original-currency").value || "AED";
+      var oCur =
+        document.getElementById("tx-modal-original-currency").value || "AED";
+
       var cAmt = parseFloat(
         document.getElementById("tx-modal-converted-amount").value || "0"
       );
-      var cCur = document.getElementById("tx-modal-converted-currency").value || "AED";
+      var cCur =
+        document.getElementById("tx-modal-converted-currency").value || "AED";
+
       var account = document.getElementById("tx-modal-account").value;
-      var labelsText = document
-        .getElementById("tx-modal-labels")
-        .value.trim();
+      var labelsText = document.getElementById("tx-modal-labels").value.trim();
       var catSelect = document.getElementById("tx-modal-category");
       var categoryId = catSelect ? catSelect.value || null : null;
 
@@ -737,14 +794,16 @@ function openTransactionModal(mode, sourceTx) {
   var labelsInput = document.getElementById("tx-modal-labels");
   var catSelect = document.getElementById("tx-modal-category");
 
-  // fill category options
+  // fill category options for modal
   if (catSelect) {
     var opts = getCategoryOptionsFlat();
     catSelect.innerHTML = "";
+
     var optNone = document.createElement("option");
     optNone.value = "";
     optNone.textContent = "Uncategorised";
     catSelect.appendChild(optNone);
+
     opts.forEach(function (c) {
       var opt = document.createElement("option");
       opt.value = c.id;
@@ -782,10 +841,12 @@ function openTransactionModal(mode, sourceTx) {
   modal.classList.remove("hidden");
 }
 
-// ===== TRANSACTIONS TABLE RENDERING =====
+// ---------- TRANSACTIONS TABLE RENDER ----------
+
 function renderTransactionsTable() {
   var tbody = document.getElementById("transactions-body");
   if (!tbody) return;
+
   tbody.innerHTML = "";
 
   var txs = getTransactionsForTable();
@@ -802,7 +863,7 @@ function renderTransactionsTable() {
   txs.forEach(function (tx) {
     var tr = document.createElement("tr");
 
-    // checkbox
+    // select checkbox
     var selectTd = document.createElement("td");
     var checkbox = document.createElement("input");
     checkbox.type = "checkbox";
@@ -831,27 +892,31 @@ function renderTransactionsTable() {
       tx.convertedCurrency
     );
 
-   var catTd = document.createElement("td");
-var catSelect = document.createElement("select");
-catSelect.className = "filter-select";
-var opts = getCategoryOptionsFlat();
-var optNone = document.createElement("option");
-optNone.value = "";
-optNone.textContent = "Uncategorised";
-catSelect.appendChild(optNone);
-opts.forEach(function (c) {
-  var opt = document.createElement("option");
-  opt.value = c.id;
-  opt.textContent = c.label;
-  catSelect.appendChild(opt);
-});
-if (tx.categoryId) catSelect.value = tx.categoryId;
-catSelect.addEventListener("change", function () {
-  tx.categoryId = catSelect.value || null;
-  renderIncomeStatement();
-});
-catTd.appendChild(catSelect);
+    // category dropdown (hierarchical)
+    var catTd = document.createElement("td");
+    var catSelect = document.createElement("select");
+    catSelect.className = "filter-select";
+
+    var opts = getCategoryOptionsFlat();
+    var optNone = document.createElement("option");
+    optNone.value = "";
+    optNone.textContent = "Uncategorised";
+    catSelect.appendChild(optNone);
+
+    opts.forEach(function (c) {
+      var opt = document.createElement("option");
+      opt.value = c.id;
+      opt.textContent = c.label;
+      catSelect.appendChild(opt);
     });
+
+    if (tx.categoryId) catSelect.value = tx.categoryId;
+
+    catSelect.addEventListener("change", function () {
+      tx.categoryId = catSelect.value || null;
+      renderIncomeStatement();
+    });
+
     catTd.appendChild(catSelect);
 
     var accTd = document.createElement("td");
@@ -887,17 +952,17 @@ function getTransactionsForTable() {
   var f = state.txFilter;
   var list = state.transactions.slice();
 
-  // text search: description, account, category name
+  // text search
   if (f.text) {
     list = list.filter(function (tx) {
       var catName = getCategoryName(tx.categoryId);
-      var hay =
+      var haystack =
         (tx.description || "") +
         " " +
         (tx.account || "") +
         " " +
         (catName || "");
-      return hay.toLowerCase().indexOf(f.text) >= 0;
+      return haystack.toLowerCase().indexOf(f.text) >= 0;
     });
   }
 
@@ -915,7 +980,7 @@ function getTransactionsForTable() {
     });
   }
 
-  // label filter (contains text)
+  // label filter
   if (f.labelText) {
     list = list.filter(function (tx) {
       var labels = tx.labels || [];
@@ -924,16 +989,18 @@ function getTransactionsForTable() {
     });
   }
 
-  // date filters
+  // date filter
   if (f.dateMode !== "any") {
     list = list.filter(function (tx) {
       var d = tx.date;
       if (!d) return false;
+
       if (f.dateMode === "on" && f.from) return d === f.from;
       if (f.dateMode === "before" && f.from) return d < f.from;
       if (f.dateMode === "after" && f.from) return d > f.from;
       if (f.dateMode === "between" && f.from && f.to)
         return d >= f.from && d <= f.to;
+
       return true;
     });
   }
@@ -950,10 +1017,12 @@ function getTransactionsForTable() {
   return list;
 }
 
-// ===== INCOME STATEMENT (Dashboard) =====
+// ---------- INCOME STATEMENT (dashboard) ----------
+
 function renderIncomeStatement() {
   var container = document.getElementById("income-statement");
   if (!container) return;
+
   container.innerHTML = "";
 
   var filtered = getFilteredTransactionsDashboard();
@@ -963,10 +1032,17 @@ function renderIncomeStatement() {
     var cat = state.categories.find(function (c) {
       return c.id === tx.categoryId;
     });
+
     var type =
-      cat && cat.type ? cat.type : tx.convertedAmount >= 0 ? "Income" : "Expense";
+      cat && cat.type
+        ? cat.type
+        : tx.convertedAmount >= 0
+        ? "Income"
+        : "Expense";
+
     var group = type === "Income" ? groups.Income : groups.Expense;
     var key = getCategoryName(tx.categoryId);
+
     if (!group[key]) group[key] = 0;
     group[key] += tx.convertedAmount;
   });
@@ -975,28 +1051,36 @@ function renderIncomeStatement() {
   var expenseTotal = sumValues(groups.Expense);
   var net = incomeTotal + expenseTotal;
 
-  container.appendChild(buildIncomeGroup("Income", groups.Income, incomeTotal));
+  container.appendChild(
+    buildIncomeGroup("Income", groups.Income, incomeTotal)
+  );
   container.appendChild(
     buildIncomeGroup("Expenses", groups.Expense, expenseTotal)
   );
 
   var netDiv = document.createElement("div");
   netDiv.className = "income-group";
+
   var title = document.createElement("div");
   title.className = "income-group__title";
   title.textContent = "Net";
+
   var line = document.createElement("div");
   line.className = "income-line";
+
   var label = document.createElement("span");
   label.className = "income-line__label";
   label.textContent = "Net result";
+
   var value = document.createElement("span");
   value.className = "income-line__value";
   value.textContent = formatAmount(net);
+
   line.appendChild(label);
   line.appendChild(value);
   netDiv.appendChild(title);
   netDiv.appendChild(line);
+
   container.appendChild(netDiv);
 }
 
@@ -1011,16 +1095,19 @@ function buildIncomeGroup(titleText, linesMap, total) {
 
   for (var labelText in linesMap) {
     if (!linesMap.hasOwnProperty(labelText)) continue;
-    var valueNum = linesMap[labelText];
 
+    var valueNum = linesMap[labelText];
     var line = document.createElement("div");
     line.className = "income-line";
+
     var label = document.createElement("span");
     label.className = "income-line__label";
     label.textContent = labelText;
+
     var value = document.createElement("span");
     value.className = "income-line__value";
     value.textContent = formatAmount(valueNum);
+
     line.appendChild(label);
     line.appendChild(value);
     group.appendChild(line);
@@ -1029,7 +1116,6 @@ function buildIncomeGroup(titleText, linesMap, total) {
   return group;
 }
 
-// transactions filtered by dashboard period selector
 function getFilteredTransactionsDashboard() {
   var mode = state.dateFilter.mode;
   var from = state.dateFilter.from;
@@ -1044,10 +1130,12 @@ function getFilteredTransactionsDashboard() {
   } else {
     end = today;
     var startDate = new Date(today);
+
     if (mode === "1m") startDate.setMonth(startDate.getMonth() - 1);
     else if (mode === "3m") startDate.setMonth(startDate.getMonth() - 3);
     else if (mode === "6m") startDate.setMonth(startDate.getMonth() - 6);
     else if (mode === "ytd") startDate.setMonth(0, 1);
+
     start = startDate;
   }
 
@@ -1057,7 +1145,8 @@ function getFilteredTransactionsDashboard() {
   });
 }
 
-// ===== HELPERS =====
+// ---------- HELPERS ----------
+
 function getCategoryName(categoryId) {
   var cat = state.categories.find(function (c) {
     return c.id === categoryId;
@@ -1082,5 +1171,7 @@ function sumValues(obj) {
   }
   return sum;
 }
+
+// ---------- BOOTSTRAP ----------
 
 document.addEventListener("DOMContentLoaded", init);
