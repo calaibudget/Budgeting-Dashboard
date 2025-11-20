@@ -84,7 +84,8 @@ body {
 /* active tab */
 #tab-radio-dashboard:checked ~ .tabs label[for="tab-radio-dashboard"],
 #tab-radio-transactions:checked ~ .tabs label[for="tab-radio-transactions"],
-#tab-radio-categories:checked ~ .tabs label[for="tab-radio-categories"] {
+#tab-radio-categories:checked ~ .tabs label[for="tab-radio-categories"],
+#tab-radio-import:checked ~ .tabs label[for="tab-radio-import"] {
   background: #111827;
   border-color: #38bdf8;
 }
@@ -104,6 +105,10 @@ body {
 }
 
 #tab-radio-categories:checked ~ .tab-panel-categories {
+  display: block;
+}
+
+#tab-radio-import:checked ~ .tab-panel-import {
   display: block;
 }
 
@@ -264,9 +269,9 @@ body {
   text-decoration: underline;
 }
 
-/* Category tree (Categories tab) */
+/* Category tree */
 
-#category-tree-tab {
+#category-tree {
   font-size: 0.85rem;
   display: flex;
   flex-direction: column;
@@ -274,7 +279,8 @@ body {
   padding-top: 0.25rem;
 }
 
-.category-row {
+/* match app.js .category-node structure */
+.category-node {
   display: flex;
   align-items: center;
   padding: 0.25rem 0.5rem;
@@ -283,34 +289,21 @@ body {
   background: #020617;
 }
 
-.category-row.level-0 {
+.category-node.leaf {
   border-color: #334155;
   margin-top: 0.3rem;
 }
 
-.category-row:hover {
+.category-node:hover {
   border-color: #475569;
   background: #020617ee;
 }
 
-.category-row__toggle {
-  width: 1rem;
-  margin-right: 0.25rem;
-  font-size: 0.8rem;
-  cursor: pointer;
-  color: #9ca3af;
-  text-align: center;
-}
-
-.category-row__toggle.empty {
-  cursor: default;
-}
-
-.category-row__label {
+.category-node__label {
   font-weight: 500;
 }
 
-.category-row__path {
+.category-node__path {
   margin-left: auto;
   font-size: 0.7rem;
   color: #9ca3af;
@@ -401,7 +394,7 @@ body {
   background: #111827;
 }
 
-/* Modal */
+/* Modal (kept for future use) */
 
 .modal {
   position: fixed;
@@ -437,42 +430,7 @@ body {
   z-index: 50;
 }
 
-.tx-modal-body {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  margin-top: 0.25rem;
-}
-
-.tx-modal-field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-  font-size: 0.8rem;
-}
-
-.tx-modal-field span {
-  color: #9ca3af;
-}
-
-.tx-modal-field input,
-.tx-modal-field select {
-  background: #020617;
-  border-radius: 0.375rem;
-  border: 1px solid #374151;
-  color: #e5e7eb;
-  padding: 0.3rem 0.5rem;
-  font-size: 0.8rem;
-}
-
-.tx-modal-inline {
-  display: flex;
-  gap: 0.4rem;
-}
-
-.tx-modal-currency-input {
-  max-width: 4rem;
-}
+/* Small text helpers */
 
 .text-muted {
   font-size: 0.8rem;
