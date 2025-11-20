@@ -2,86 +2,132 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Budget Dashboard</title>
+  <title>Budgeting Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link rel="stylesheet" href="src/css/styles.css" />
+  <!-- Your CSS file -->
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div id="app">
+  <div class="app">
+    <!-- Top bar: tabs + dashboard period selector -->
     <header class="top-bar">
-      <h1>Budget Dashboard</h1>
+      <div class="top-bar__tabs">
+        <!-- Radio-based tabs -->
+        <input type="radio" name="main-tabs" id="tab-radio-dashboard" checked />
+        <label for="tab-radio-dashboard" class="tab-label">Dashboard</label>
+
+        <input type="radio" name="main-tabs" id="tab-radio-transactions" />
+        <label for="tab-radio-transactions" class="tab-label">Transactions</label>
+
+        <input type="radio" name="main-tabs" id="tab-radio-categories" />
+        <label for="tab-radio-categories" class="tab-label">Categories</label>
+
+        <input type="radio" name="main-tabs" id="tab-radio-import" />
+        <label for="tab-radio-import" class="tab-label">Import</label>
+      </div>
+
+      <!-- Period selector (shown only on Dashboard by JS) -->
       <div class="top-bar__filters">
-        <label>
-          Period:
-          <select id="period-select">
-            <option value="1m">Last 1 month</option>
-            <option value="3m">Last 3 months</option>
-            <option value="6m" selected>Last 6 months</option>
-            <option value="ytd">YTD</option>
-            <option value="custom">Custom</option>
-          </select>
-        </label>
-        <label id="custom-range" class="hidden">
-          From:
-          <input type="date" id="date-from" />
-          To:
-          <input type="date" id="date-to" />
-        </label>
+        <label for="period-select" class="top-bar__filters-label">Period:</label>
+        <select id="period-select" class="filter-select">
+          <option value="1m">Last 1 month</option>
+          <option value="3m">Last 3 months</option>
+          <option value="6m" selected>Last 6 months</option>
+          <option value="ytd">Year to date</option>
+          <option value="custom">Custom</option>
+        </select>
+
+        <div id="custom-range" class="custom-range hidden">
+          <label>
+            From:
+            <input type="date" id="date-from" />
+          </label>
+          <label>
+            To:
+            <input type="date" id="date-to" />
+          </label>
+        </div>
       </div>
     </header>
 
-    <div class="tabs-wrapper">
-      <!-- radio buttons control which tab is visible (no JS needed) -->
-      <input
-        type="radio"
-        id="tab-radio-dashboard"
-        name="main-tab"
-        class="tab-radio"
-        checked
-      />
-      <input
-        type="radio"
-        id="tab-radio-transactions"
-        name="main-tab"
-        class="tab-radio"
-      />
-      <input
-        type="radio"
-        id="tab-radio-categories"
-        name="main-tab"
-        class="tab-radio"
-      />
-
-      <nav class="tabs">
-        <label for="tab-radio-dashboard" class="tab-button">Dashboard</label>
-        <label for="tab-radio-transactions" class="tab-button">Transactions</label>
-        <label for="tab-radio-categories" class="tab-button">Categories</label>
-      </nav>
-
-      <!-- DASHBOARD: summary + sankey -->
-      <section class="tab-panel tab-panel-dashboard">
-        <main class="layout layout-dashboard">
-          <section class="panel">
-            <h2>Summary</h2>
-            <div id="income-statement"></div>
-
-            <h3>Flow Diagram (Sankey)</h3>
-            <div id="sankey-container">
-              <p class="placeholder">
-                Sankey diagram will appear here once data &amp; charts are wired.
-              </p>
-            </div>
-          </section>
-        </main>
+    <main class="main-content">
+      <!-- DASHBOARD TAB -->
+      <section id="tab-dashboard" class="tab-panel">
+        <div class="card">
+          <h2>Income statement</h2>
+          <p class="card-subtitle">
+            Summary of income and expenses for the selected period.
+          </p>
+          <div id="income-statement" class="income-statement">
+            <!-- Populated by JS -->
+          </div>
+        </div>
       </section>
 
       <!-- TRANSACTIONS TAB -->
-      <section class="tab-panel tab-panel-transactions">
-        <main class="layout layout-transactions">
-          <section class="panel">
-            <div class="panel-header-row">
-              <h2>Transactions</h2>
-              <div class="panel-actions">
+      <section id="tab-transactions" class="tab-panel">
+        <div class="card">
+          <h2>Transactions</h2>
+
+          <!-- Search and filters -->
+          <div class="transactions-filters">
+            <div class="transactions-filters__row">
+              <label>
+                Search:
+                <input
+                  type="text"
+                  id="tx-search"
+                  placeholder="Description, account, category..."
+                />
+              </label>
+
+              <label>
+                Account:
+                <select id="tx-filter-account" class="filter-select">
+                  <option value="all">All accounts</option>
+                </select>
+              </label>
+
+              <label>
+                Category:
+                <select id="tx-filter-category" class="filter-select">
+                  <option value="all">All categories</option>
+                </select>
+              </label>
+
+              <label>
+                Labels:
+                <input
+                  type="text"
+                  id="tx-filter-label"
+                  placeholder="Search labels"
+                />
+              </label>
+            </div>
+
+            <div class="transactions-filters__row">
+              <label>
+                Date:
+                <select id="tx-filter-date-mode" class="filter-select">
+                  <option value="any">Any</option>
+                  <option value="on">On</option>
+                  <option value="before">Before</option>
+                  <option value="after">After</option>
+                  <option value="between">Between</option>
+                </select>
+              </label>
+
+              <label>
+                From:
+                <input type="date" id="tx-date-from" />
+              </label>
+
+              <label>
+                To:
+                <input type="date" id="tx-date-to" />
+              </label>
+
+              <div class="transactions-filters__actions">
                 <button id="add-transaction" class="primary-button">
                   Add transaction
                 </button>
@@ -90,137 +136,139 @@
                 </button>
               </div>
             </div>
+          </div>
 
-            <div class="transactions-bulk">
-              <div class="bulk-group">
-                <label class="bulk-label">Set category for selected:</label>
-                <select id="bulk-category-select"></select>
-                <button id="apply-bulk-category" class="secondary-button">
-                  Apply
-                </button>
-              </div>
-              <div class="bulk-group">
-                <label class="bulk-label">Add label to selected:</label>
+          <!-- Bulk operations -->
+          <div class="transactions-bulk">
+            <div class="transactions-bulk__group">
+              <label>
+                Set category:
+                <select id="bulk-category-select" class="filter-select">
+                  <option value="none">Select category</option>
+                </select>
+              </label>
+              <button id="apply-bulk-category" class="secondary-button">
+                Apply to selected
+              </button>
+            </div>
+
+            <div class="transactions-bulk__group">
+              <label>
+                Add label:
                 <input
-                  id="bulk-label-input"
-                  class="bulk-input"
                   type="text"
-                  placeholder="Label..."
+                  id="bulk-label-input"
+                  placeholder="e.g. Work, Trip"
                 />
-                <button id="apply-bulk-label" class="secondary-button">
-                  Add
-                </button>
-              </div>
+              </label>
+              <button id="apply-bulk-label" class="secondary-button">
+                Apply to selected
+              </button>
             </div>
+          </div>
 
-            <div class="transactions-filters">
-              <input
-                id="tx-search"
-                class="filter-input"
-                type="text"
-                placeholder="Search description, category, account..."
-              />
-              <select id="tx-filter-account" class="filter-select">
-                <option value="all">All accounts</option>
-              </select>
-              <select id="tx-filter-category" class="filter-select">
-                <option value="all">All categories</option>
-              </select>
-              <input
-                id="tx-filter-label"
-                class="filter-input"
-                type="text"
-                placeholder="Label contains..."
-              />
-              <select id="tx-filter-date-mode" class="filter-select">
-                <option value="any">Any date</option>
-                <option value="on">On</option>
-                <option value="before">Before</option>
-                <option value="after">After</option>
-                <option value="between">Between</option>
-              </select>
-              <input id="tx-date-from" class="filter-input" type="date" />
-              <input id="tx-date-to" class="filter-input" type="date" />
-            </div>
-
+          <!-- Transactions table -->
+          <div class="table-wrapper">
             <table class="transactions-table">
               <thead>
                 <tr>
-                  <th class="tx-col-select"></th>
+                  <th></th>
                   <th id="tx-header-date" class="sortable">Date</th>
                   <th>Description</th>
-                  <th>Original</th>
-                  <th>Converted</th>
+                  <th>Original amount</th>
+                  <th>Converted amount</th>
                   <th>Category</th>
                   <th>Account</th>
                   <th>Labels</th>
-                  <th></th>
+                  <th>Actions</th>
                 </tr>
               </thead>
-              <tbody id="transactions-body"></tbody>
+              <tbody id="transactions-body">
+                <!-- Populated by JS -->
+              </tbody>
             </table>
-          </section>
-        </main>
+          </div>
+        </div>
       </section>
 
       <!-- CATEGORIES TAB -->
-      <section class="tab-panel tab-panel-categories">
-        <main class="layout layout-categories">
-          <!-- Left: category tree -->
-          <section class="panel">
+      <section id="tab-categories" class="tab-panel">
+        <div class="card">
+          <div class="card-header-row">
             <h2>Categories</h2>
-            <p class="text-muted">
-              This is your current category tree. Use indentation to see parent → sub → sub-sub.
-              Click the arrows to collapse or expand groups.
-            </p>
-            <div id="category-tree-tab"></div>
-          </section>
-
-          <!-- Right: edit trigger -->
-          <section class="panel">
-            <h2>Edit categories</h2>
-            <p class="text-muted">
-              Open the editor to paste or adjust your category list using dash-based levels.
-              When you apply, this tree and the Dashboard summary will update.
-            </p>
-            <button id="open-category-editor" class="primary-button">
-              Open categories editor
+            <button id="open-category-editor" class="secondary-button">
+              Edit categories
             </button>
-          </section>
-        </main>
+          </div>
+          <p class="card-subtitle">
+            Collapsible category tree. Edit the structure via the popup editor.
+          </p>
+
+          <div id="category-tree-tab" class="category-tree">
+            <!-- Populated by JS -->
+          </div>
+        </div>
       </section>
-    </div>
+
+      <!-- IMPORT TAB -->
+      <section id="tab-import" class="tab-panel">
+        <div class="card">
+          <h2>Import transactions</h2>
+          <p class="card-subtitle">
+            Upload a PocketSmith CSV export. You can append to or replace the
+            existing transactions.
+          </p>
+
+          <div class="import-row">
+            <label>
+              CSV file:
+              <input type="file" id="import-file" accept=".csv" />
+            </label>
+          </div>
+
+          <div class="import-row">
+            <label>
+              <input type="checkbox" id="import-clear-existing" />
+              Clear existing transactions before import
+            </label>
+          </div>
+
+          <div class="import-row">
+            <button id="import-button" class="primary-button">
+              Import CSV
+            </button>
+          </div>
+
+          <div id="import-status" class="import-status"></div>
+        </div>
+      </section>
+    </main>
   </div>
 
   <!-- CATEGORY EDITOR MODAL -->
   <div id="category-editor-modal" class="modal hidden">
     <div class="modal-backdrop"></div>
-    <div class="modal-dialog">
-      <h2>Edit categories</h2>
-      <p class="text-muted">
-        Paste your category tree here, one category per line. Use dashes for levels:
-        <br />
+    <div class="modal-content">
+      <h3>Edit categories</h3>
+      <p class="modal-description">
+        Use dashes to indicate levels. Example:<br />
+        <code>Income</code><br />
+        <code>-Base Salary</code><br />
+        <code>-Performance Bonus</code><br />
         <code>Food &amp; Drinks</code><br />
-        <code>-Groceries</code><br />
         <code>-Restaurants</code><br />
-        <code>--Lunch</code><br />
-        <code>--Dinner</code>
+        <code>--Lunch</code>
       </p>
       <textarea
         id="categories-editor-modal"
-        class="categories-textarea"
-        placeholder="Food &amp; Drinks
--Groceries
--Restaurants
---Lunch
---Dinner"
+        rows="16"
+        class="modal-textarea"
       ></textarea>
-      <div class="editor-actions">
-        <button id="cancel-categories" class="secondary-button">
-          Cancel
-        </button>
+
+      <div class="modal-actions">
+        <button id="cancel-categories" class="secondary-button">Cancel</button>
         <button id="apply-categories" class="primary-button">
-          Apply changes
+          Update categories
         </button>
       </div>
     </div>
@@ -229,73 +277,67 @@
   <!-- TRANSACTION EDITOR MODAL -->
   <div id="transaction-editor-modal" class="modal hidden">
     <div class="modal-backdrop"></div>
-    <div class="modal-dialog">
-      <h2 id="tx-modal-title">Add transaction</h2>
-      <div class="tx-modal-body">
-        <label class="tx-modal-field">
-          <span>Date</span>
+    <div class="modal-content">
+      <h3 id="tx-modal-title">Add transaction</h3>
+
+      <div class="modal-grid">
+        <label>
+          Date
           <input type="date" id="tx-modal-date" />
         </label>
-        <label class="tx-modal-field">
-          <span>Description</span>
+
+        <label>
+          Description
           <input type="text" id="tx-modal-description" />
         </label>
-        <label class="tx-modal-field">
-          <span>Original amount</span>
-          <div class="tx-modal-inline">
-            <input type="number" step="0.01" id="tx-modal-original-amount" />
-            <input
-              type="text"
-              id="tx-modal-original-currency"
-              class="tx-modal-currency-input"
-              placeholder="AED"
-            />
-          </div>
+
+        <label>
+          Original amount
+          <input type="number" step="0.01" id="tx-modal-original-amount" />
         </label>
-        <label class="tx-modal-field">
-          <span>Converted amount</span>
-          <div class="tx-modal-inline">
-            <input type="number" step="0.01" id="tx-modal-converted-amount" />
-            <input
-              type="text"
-              id="tx-modal-converted-currency"
-              class="tx-modal-currency-input"
-              placeholder="AED"
-            />
-          </div>
+
+        <label>
+          Original currency
+          <input type="text" id="tx-modal-original-currency" value="AED" />
         </label>
-        <label class="tx-modal-field">
-          <span>Account</span>
+
+        <label>
+          Converted amount
+          <input type="number" step="0.01" id="tx-modal-converted-amount" />
+        </label>
+
+        <label>
+          Converted currency
+          <input type="text" id="tx-modal-converted-currency" value="AED" />
+        </label>
+
+        <label>
+          Account
           <input type="text" id="tx-modal-account" />
         </label>
-        <label class="tx-modal-field">
-          <span>Labels</span>
-          <input
-            type="text"
-            id="tx-modal-labels"
-            placeholder="Comma separated: Work, Travel, ..."
-          />
+
+        <label>
+          Category
+          <select id="tx-modal-category" class="filter-select">
+            <!-- Filled by JS -->
+          </select>
         </label>
-        <label class="tx-modal-field">
-          <span>Category</span>
-          <select id="tx-modal-category"></select>
+
+        <label class="modal-grid--full">
+          Labels (comma separated)
+          <input type="text" id="tx-modal-labels" />
         </label>
       </div>
-      <div class="editor-actions">
-        <button id="tx-modal-cancel" class="secondary-button">
-          Cancel
-        </button>
-        <button id="tx-modal-save" class="primary-button">
-          Save
-        </button>
+
+      <div class="modal-actions">
+        <button id="tx-modal-cancel" class="secondary-button">Cancel</button>
+        <button id="tx-modal-save" class="primary-button">Save</button>
       </div>
     </div>
   </div>
 
-  <script defer src="src/app.js"></script>
+  <!-- Your JS -->
+  <script src="app.js"></script>
 </body>
 </html>
 
-  <script defer src="src/app.js"></script>
-</body>
-</html>
