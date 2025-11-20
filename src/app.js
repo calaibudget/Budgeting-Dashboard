@@ -19,7 +19,11 @@ var state = {
     sortByDate: "desc"
   }
 };
-
+// Number formatter with thousands separator and 2 decimals
+var amountFormatter = new Intl.NumberFormat("en-US", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2
+});
 // which parents are collapsed in the tree
 var collapsedCategoryIds = new Set();
 var selectedTransactionIds = new Set();
@@ -165,13 +169,14 @@ function setupTabHeaderVisibility() {
     return;
   }
 
-  function updateFiltersVisibility() {
-    if (catRadio.checked) {
-      filters.style.display = "none";
-    } else {
-      filters.style.display = "flex";
-    }
+function updateFiltersVisibility() {
+  // Show the period selector ONLY on the Dashboard tab
+  if (dashRadio.checked) {
+    filters.style.display = "flex";
+  } else {
+    filters.style.display = "none";
   }
+}
 
   dashRadio.addEventListener("change", updateFiltersVisibility);
   txRadio.addEventListener("change", updateFiltersVisibility);
@@ -564,9 +569,12 @@ function getCategoryOptionsFlat() {
   });
 
   function dfs(cat, depth, pathLabel) {
-    var label =
-      (depth > 0 ? Array(depth + 1).join("  ") : "") + cat.name;
-    result.push({ id: cat.id, label: label, fullPath: pathLabel });
+    // Use dashes to show hierarchy: -Sub, --SubSub, etc.
+    var prefix = depth > 0 ? Array(depth + 1).join("-") : "";
+    var label = prefix + cat.name;
+
+    result.push({ id: cat.id, label: label, fullPath: pathLabel, depth: depth });
+
     var children = childrenMap[cat.id] || [];
     children.forEach(function (child) {
       dfs(child, depth + 1, pathLabel + " › " + child.name);
@@ -823,24 +831,26 @@ function renderTransactionsTable() {
       tx.convertedCurrency
     );
 
-    var catTd = document.createElement("td");
-    var catSelect = document.createElement("select");
-    catSelect.className = "filter-select";
-    var opts = getCategoryOptionsFlat();
-    var optNone = document.createElement("option");
-    optNone.value = "";
-    optNone.textContent = "Uncategorised";
-    catSelect.appendChild(optNone);
-    opts.forEach(function (c) {
-      var opt = document.createElement("option");
-      opt.value = c.id;
-      opt.textContent = c.label;
-      catSelect.appendChild(opt);
-    });
-    if (tx.categoryId) catSelect.value = tx.categoryId;
-    catSelect.addEventListener("change", function () {
-      tx.categoryId = catSelect.value || null;
-      renderIncomeStatement();
+   var catTd = document.createElement("td");
+var catSelect = document.createElement("select");
+catSelect.className = "filter-select";
+var opts = getCategoryOptionsFlat();
+var optNone = document.createElement("option");
+optNone.value = "";
+optNone.textContent = "Uncategorised";
+catSelect.appendChild(optNone);
+opts.forEach(function (c) {
+  var opt = document.createElement("option");
+  opt.value = c.id;
+  opt.textContent = c.label;
+  catSelect.appendChild(opt);
+});
+if (tx.categoryId) catSelect.value = tx.categoryId;
+catSelect.addEventListener("change", function () {
+  tx.categoryId = catSelect.value || null;
+  renderIncomeStatement();
+});
+catTd.appendChild(catSelect);
     });
     catTd.appendChild(catSelect);
 
@@ -1057,7 +1067,7 @@ function getCategoryName(categoryId) {
 
 function formatAmount(amount) {
   var sign = amount < 0 ? "-" : "";
-  var value = Math.abs(amount).toFixed(2);
+  var value = amountFormatter.format(Math.abs(amount));
   return sign + value;
 }
 
