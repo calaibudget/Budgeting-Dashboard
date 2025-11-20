@@ -559,3 +559,70 @@ body {
 .income-cell-category {
   white-space: nowrap;
 }
+/* Category trees */
+.category-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 8px;
+  border-radius: 6px;
+  margin-bottom: 2px;
+  font-size: 13px;
+}
+
+.category-row__label {
+  font-weight: 500;
+}
+
+.category-row__path {
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+/* Statement tables */
+.statement-panel {
+  margin-top: 16px;
+}
+
+.statement-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.statement-table th,
+.statement-table td {
+  padding: 4px 8px;
+  text-align: right;
+}
+
+.statement-table th:first-child,
+.statement-table td:first-child {
+  text-align: left;
+}
+
+.stmt-cat {
+  white-space: nowrap;
+}
+
+/* Amount colours */
+.amount-negative {
+  color: #ff6b6b;
+}
+
+.amount-positive {
+  color: #2ecc71;
+}
+
+.percent-negative {
+  color: #ff6b6b;
+}
+
+.percent-positive {
+  color: #2ecc71;
+}
+
+.income-summary {
+  margin-bottom: 8px;
+  font-size: 13px;
+  opacity: 0.8;
+}
