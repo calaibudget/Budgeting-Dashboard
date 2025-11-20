@@ -3,262 +3,145 @@
 <head>
   <meta charset="UTF-8" />
   <title>Budget Dashboard</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <!-- Adjust path if your css is elsewhere -->
-  <link rel="stylesheet" href="src/css/styles.css" />
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div id="app">
-    <!-- TOP BAR -->
-    <header class="top-bar">
+  <div class="app">
+    <header class="app-header">
       <h1>Budget Dashboard</h1>
     </header>
 
-    <!-- TABS + PANELS -->
-    <div class="tabs-wrapper">
-      <!-- Radios (must come before .tabs and panels) -->
-      <input
-        type="radio"
-        class="tab-radio"
-        name="main-tabs"
-        id="tab-radio-dashboard"
-        checked
-      />
-      <input
-        type="radio"
-        class="tab-radio"
-        name="main-tabs"
-        id="tab-radio-transactions"
-      />
-      <input
-        type="radio"
-        class="tab-radio"
-        name="main-tabs"
-        id="tab-radio-categories"
-      />
-      <input
-        type="radio"
-        class="tab-radio"
-        name="main-tabs"
-        id="tab-radio-import"
-      />
+    <!-- Tabs -->
+    <nav class="tabs">
+      <button class="tab-button active" data-tab="dashboard-tab">Dashboard</button>
+      <button class="tab-button" data-tab="transactions-tab">Transactions</button>
+      <button class="tab-button" data-tab="categories-tab">Categories</button>
+      <button class="tab-button" data-tab="import-tab">Import</button>
+    </nav>
 
-      <!-- TAB BUTTONS -->
-      <div class="tabs">
-        <label for="tab-radio-dashboard" class="tab-button">Dashboard</label>
-        <label for="tab-radio-transactions" class="tab-button">Transactions</label>
-        <label for="tab-radio-categories" class="tab-button">Categories</label>
-        <label for="tab-radio-import" class="tab-button">Import</label>
-      </div>
-
-      <!-- DASHBOARD PANEL -->
-      <div class="tab-panel tab-panel-dashboard">
-        <div class="layout layout-dashboard">
-          <div class="panel">
-            <!-- PERIOD FILTER (only here) -->
-            <div class="dashboard-filters">
-              <span>Period:</span>
-              <select id="period-select">
-                <option value="1m">Last 1 month</option>
-                <option value="3m">Last 3 months</option>
-                <option value="6m" selected>Last 6 months</option>
-                <option value="ytd">Year to date</option>
-                <option value="custom">Custom</option>
-              </select>
-
-              <div id="custom-range" class="hidden">
-                <label>
-                  From:
-                  <input type="date" id="date-from" />
-                </label>
-                <label>
-                  To:
-                  <input type="date" id="date-to" />
-                </label>
-              </div>
+    <main class="tab-container">
+      <!-- DASHBOARD TAB -->
+      <section id="dashboard-tab" class="tab-panel active">
+        <div class="dashboard-header">
+          <div class="period-filter">
+            <label for="period-select">Period:</label>
+            <select id="period-select">
+              <option value="1m">Last 1 month</option>
+              <option value="3m">Last 3 months</option>
+              <option value="6m" selected>Last 6 months</option>
+              <option value="ytd">Year to date</option>
+              <option value="custom">Custom</option>
+            </select>
+            <div id="custom-range" class="custom-range hidden">
+              <label>From <input type="date" id="date-from" /></label>
+              <label>To <input type="date" id="date-to" /></label>
             </div>
-
-            <h2>Income statement</h2>
-            <p class="text-muted">
-              Summary of income and expenses for the selected period.
-            </p>
-            <div id="income-statement"></div>
           </div>
         </div>
-      </div>
 
-      <!-- TRANSACTIONS PANEL -->
-      <div class="tab-panel tab-panel-transactions">
-        <div class="layout layout-transactions">
-          <div class="panel">
-            <div class="panel-header-row">
-              <h2>Transactions</h2>
-            </div>
+        <section class="card">
+          <h2>Income Statement</h2>
+          <div id="income-statement"></div>
+        </section>
+      </section>
 
-            <!-- Filters (UI only for now) -->
-            <div class="transactions-filters">
-              <input
-                id="tx-search"
-                class="filter-input"
-                type="text"
-                placeholder="Search description, account, category..."
-              />
-              <select id="tx-filter-account" class="filter-select">
-                <option value="all">All accounts</option>
-              </select>
-              <select id="tx-filter-category" class="filter-select">
-                <option value="all">All categories</option>
-              </select>
-              <input
-                id="tx-filter-label"
-                class="filter-input"
-                type="text"
-                placeholder="Search labels"
-              />
+      <!-- TRANSACTIONS TAB -->
+      <section id="transactions-tab" class="tab-panel">
+        <section class="card">
+          <h2>Transactions</h2>
+          <table class="table transactions-table">
+            <thead>
+              <tr>
+                <th class="tx-col-date">Date</th>
+                <th class="tx-col-desc">Description</th>
+                <th class="tx-col-amount">Amount</th>
+                <th class="tx-col-category">Category</th>
+                <th class="tx-col-account">Account</th>
+              </tr>
+            </thead>
+            <tbody id="transactions-body"></tbody>
+          </table>
+        </section>
+      </section>
 
-              <select id="tx-filter-date-mode" class="filter-select">
-                <option value="any">Any date</option>
-                <option value="on">On</option>
-                <option value="before">Before</option>
-                <option value="after">After</option>
-                <option value="between">Between</option>
-              </select>
-              <input id="tx-date-from" type="date" class="filter-input" />
-              <input id="tx-date-to" type="date" class="filter-input" />
-
-              <button id="add-transaction" class="primary-button">
-                Add transaction
-              </button>
-              <button id="delete-selected" class="secondary-button">
-                Delete selected
-              </button>
-            </div>
-
-            <!-- Bulk actions (hook-ups later if you want) -->
-            <div class="transactions-bulk">
-              <div class="bulk-group">
-                <span class="bulk-label">Set category:</span>
-                <select id="bulk-category-select" class="filter-select">
-                  <option value="none">Select category</option>
-                </select>
-                <button id="apply-bulk-category" class="secondary-button">
-                  Apply
-                </button>
-              </div>
-
-              <div class="bulk-group">
-                <span class="bulk-label">Add label:</span>
-                <input
-                  id="bulk-label-input"
-                  class="bulk-input"
-                  type="text"
-                  placeholder="e.g. Work, Trip"
-                />
-                <button id="apply-bulk-label" class="secondary-button">
-                  Apply
-                </button>
-              </div>
-            </div>
-
-            <!-- Transactions table (wired to app.js) -->
-            <table class="transactions-table">
-              <thead>
-                <tr>
-                  <th class="tx-col-select"></th>
-                  <th>Date</th>
-                  <th>Description</th>
-                  <th>Amount</th>
-                  <th>Category</th>
-                </tr>
-              </thead>
-              <tbody id="transactions-body"></tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      <!-- CATEGORIES PANEL -->
-      <div class="tab-panel tab-panel-categories">
-        <div class="layout layout-categories">
-          <!-- Tree -->
-          <div class="panel">
+      <!-- CATEGORIES TAB -->
+      <section id="categories-tab" class="tab-panel">
+        <div class="categories-layout">
+          <!-- LEFT: Trees -->
+          <div class="categories-trees card">
             <h2>Categories</h2>
-            <p class="text-muted">
-              Drag transactions onto leaf categories to recategorise them.
-            </p>
-            <div id="category-tree"></div>
-          </div>
 
-          <!-- Text editor -->
-          <div class="panel">
-            <h2>Categories editor</h2>
-            <p class="text-muted">
-              Paste your category tree here, one per line. Use dashes for levels
-              (no dash = top level, <code>-</code> = level 1, <code>--</code> = level 2, etc.).
-            </p>
+            <div class="category-tree-group">
+              <h3>Income categories</h3>
+              <div id="income-category-tree" class="category-tree"></div>
+            </div>
 
-            <pre class="placeholder">
-Income
--Base Salary
--Performance Bonus
-Food &amp; Drinks
--Restaurants
---Lunch
---Dinner
--Food Delivery
-Life &amp; Entertainment
--Gifts
-            </pre>
-
-            <textarea
-              id="categories-editor"
-              class="categories-textarea"
-            ></textarea>
-
-            <div class="editor-actions">
-              <button id="apply-categories" class="primary-button">
-                Update categories
-              </button>
+            <div class="category-tree-group">
+              <h3>Expense categories</h3>
+              <div id="expense-category-tree" class="category-tree"></div>
             </div>
           </div>
-        </div>
-      </div>
 
-      <!-- IMPORT PANEL -->
-      <div class="tab-panel tab-panel-import">
-        <div class="layout layout-transactions">
-          <div class="panel">
-            <h2>Import transactions</h2>
-            <p class="text-muted">
-              Upload a PocketSmith CSV export. You can append to or replace the
-              existing transactions.
-            </p>
+          <!-- RIGHT: Editors -->
+          <div class="categories-editors card">
+            <h2>Edit categories</h2>
 
-            <div class="import-form">
-              <label>
-                CSV file:
-                <input type="file" id="import-file" accept=".csv" />
-              </label>
-
-              <label class="import-clear-row">
-                <input type="checkbox" id="import-clear-existing" />
-                Clear existing transactions before import
-              </label>
-
-              <div class="editor-actions import-actions">
-                <button id="import-button" class="primary-button">
-                  Import CSV
+            <div class="editor-block">
+              <div class="editor-header">
+                <h3>Income categories</h3>
+                <button id="apply-income-categories" class="btn-primary">
+                  Update income categories
                 </button>
               </div>
+              <p class="editor-hint">
+                Use dashes for indentation. Example:<br />
+                Income<br />
+                -Base Salary<br />
+                -Cashback<br />
+                -Per Diem
+              </p>
+              <textarea id="income-categories-editor" rows="8"></textarea>
+            </div>
 
-              <div id="import-status" class="placeholder"></div>
+            <div class="editor-block">
+              <div class="editor-header">
+                <h3>Expense categories</h3>
+                <button id="apply-expense-categories" class="btn-primary">
+                  Update expense categories
+                </button>
+              </div>
+              <p class="editor-hint">
+                Use dashes for indentation. Example:<br />
+                Food &amp; Drinks<br />
+                -Groceries<br />
+                -Restaurants<br />
+                --Lunch<br />
+                --Dinner
+              </p>
+              <textarea id="expense-categories-editor" rows="10"></textarea>
             </div>
           </div>
         </div>
-      </div>
-    </div> <!-- /tabs-wrapper -->
-  </div> <!-- /#app -->
+      </section>
 
- <script src="app.js"></script>
+      <!-- IMPORT TAB -->
+      <section id="import-tab" class="tab-panel">
+        <section class="card">
+          <h2>Import transactions (CSV)</h2>
+          <div class="import-controls">
+            <input type="file" id="import-file" accept=".csv" />
+            <label class="checkbox-inline">
+              <input type="checkbox" id="import-clear-existing" />
+              Replace existing transactions
+            </label>
+            <button id="import-button" class="btn-primary">Import</button>
+          </div>
+          <p id="import-status" class="import-status"></p>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
 </body>
 </html>
