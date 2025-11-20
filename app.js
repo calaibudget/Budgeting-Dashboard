@@ -413,86 +413,278 @@ function renderTransactionsTable() {
   });
 }
 
-// ========== INCOME STATEMENT ==========
+// ========== INCOME STATEMENT (TREE VIEW) ==========
 function renderIncomeStatement() {
   var container = document.getElementById("income-statement");
   if (!container) return;
   container.innerHTML = "";
 
   var filtered = getFilteredTransactions();
-
-  var groups = { Income: {}, Expense: {} };
-
-  filtered.forEach(function (tx) {
-    var cat = state.categories.find(function (c) {
-      return c.id === tx.categoryId;
-    });
-    var type =
-      cat && cat.type ? cat.type : tx.amount >= 0 ? "Income" : "Expense";
-    var group = type === "Income" ? groups.Income : groups.Expense;
-    var key = getCategoryName(tx.categoryId);
-    if (!group[key]) group[key] = 0;
-    group[key] += tx.amount;
-  });
-
-  var incomeTotal = sumValues(groups.Income);
-  var expenseTotal = sumValues(groups.Expense);
-  var net = incomeTotal + expenseTotal;
-
-  container.appendChild(buildIncomeGroup("Income", groups.Income, incomeTotal));
-  container.appendChild(
-    buildIncomeGroup("Expenses", groups.Expense, expenseTotal)
-  );
-
-  var netDiv = document.createElement("div");
-  netDiv.className = "income-group";
-  var title = document.createElement("div");
-  title.className = "income-group__title";
-  title.textContent = "Net";
-  var line = document.createElement("div");
-  line.className = "income-line";
-  var label = document.createElement("span");
-  label.className = "income-line__label";
-  label.textContent = "Net result";
-  var value = document.createElement("span");
-  value.className = "income-line__value";
-  value.textContent = formatAmount(net);
-  line.appendChild(label);
-  line.appendChild(value);
-  netDiv.appendChild(title);
-  netDiv.appendChild(line);
-  container.appendChild(netDiv);
-}
-
-function buildIncomeGroup(titleText, linesMap, total) {
-  var group = document.createElement("div");
-  group.className = "income-group";
-
-  var title = document.createElement("div");
-  title.className = "income-group__title";
-  title.textContent = titleText + " (" + formatAmount(total) + ")";
-  group.appendChild(title);
-
-  for (var labelText in linesMap) {
-    if (!linesMap.hasOwnProperty(labelText)) continue;
-    var valueNum = linesMap[labelText];
-
-    var line = document.createElement("div");
-    line.className = "income-line";
-    var label = document.createElement("span");
-    label.className = "income-line__label";
-    label.textContent = labelText;
-    var value = document.createElement("span");
-    value.className = "income-line__value";
-    value.textContent = formatAmount(valueNum);
-    line.appendChild(label);
-    line.appendChild(value);
-    group.appendChild(line);
+  if (!filtered.length) {
+    container.textContent = "No transactions in the selected period.";
+    return;
   }
 
-  return group;
+  // Map categoryId -> category object
+  var catMap = {};
+  state.categories.forEach(function (c) {
+    catMap[c.id] = c;
+  });
+
+  // Aggregate along the category chain:
+  // every transaction amount is added to its category AND all parents.
+  var amountByCategory = {};
+  filtered.forEach(function (tx) {
+    var current = catMap[tx.categoryId] || null;
+    while (current) {
+      if (!amountByCategory[current.id]) amountByCategory[current.id] = 0;
+      amountByCategory[current.id] += tx.amount;
+      current = current.parentId ? catMap[current.parentId] : null;
+    }
+  });
+
+  // Build children map (full tree)
+  var childrenMap = {};
+  state.categories.forEach(function (c) {
+    var key = c.parentId || "root";
+    if (!childrenMap[key]) childrenMap[key] = [];
+    childrenMap[key].push(c);
+  });
+
+  // Totals
+  var totalIncome = 0;
+  var totalExpenses = 0;
+
+  state.categories.forEach(function (c) {
+    var amt = amountByCategory[c.id] || 0;
+    if (c.type === "Income") {
+      totalIncome += amt; // expected positive
+    } else if (c.type === "Expense") {
+      // store as positive total for percentages
+      totalExpenses += Math.max(-amt, 0);
+    }
+  });
+
+  // INCOME SECTION
+  var incomeSection = buildStatementSection({
+    sectionType: "Income",
+    title: "INCOME",
+    amountByCategory: amountByCategory,
+    childrenMap: childrenMap,
+    totalIncome: totalIncome,
+    totalExpenses: totalExpenses
+  });
+  container.appendChild(incomeSection);
+
+  // EXPENSE SECTION
+  var expenseSection = buildStatementSection({
+    sectionType: "Expense",
+    title: "EXPENSE",
+    amountByCategory: amountByCategory,
+    childrenMap: childrenMap,
+    totalIncome: totalIncome,
+    totalExpenses: totalExpenses
+  });
+  container.appendChild(expenseSection);
+
+  // Totals + Net
+  var totals = document.createElement("div");
+  totals.className = "statement-summary-row";
+
+  var totalIncomeSpan = document.createElement("div");
+  totalIncomeSpan.textContent = "Total income: " + formatAmount(totalIncome);
+
+  var totalExpenseSpan = document.createElement("div");
+  totalExpenseSpan.textContent =
+    "Total expenses: " + formatAmount(totalExpenses);
+
+  var netSpan = document.createElement("div");
+  netSpan.textContent =
+    "Net: " + formatAmount(totalIncome - totalExpenses);
+
+  totals.appendChild(totalIncomeSpan);
+  totals.appendChild(totalExpenseSpan);
+  totals.appendChild(netSpan);
+
+  container.appendChild(totals);
 }
 
+/**
+ * Build a whole section (Income or Expense) with header + tree.
+ * sectionType: "Income" | "Expense"
+ */
+function buildStatementSection(opts) {
+  var sectionType = opts.sectionType;
+  var title = opts.title;
+  var amountByCategory = opts.amountByCategory;
+  var childrenMap = opts.childrenMap;
+  var totalIncome = opts.totalIncome;
+  var totalExpenses = opts.totalExpenses;
+
+  var section = document.createElement("div");
+  section.className = "statement-section";
+
+  // Title
+  var header = document.createElement("div");
+  header.className = "statement-section__title";
+  header.textContent =
+    title + (totalIncome ? " (base: " + formatAmount(totalIncome) + ")" : "");
+  section.appendChild(header);
+
+  // Column headers
+  var headerRow = document.createElement("div");
+  headerRow.className = "statement-row statement-row--header";
+
+  var hLabel = document.createElement("span");
+  hLabel.className = "statement-cell label";
+  hLabel.textContent = "Category";
+
+  var hAmount = document.createElement("span");
+  hAmount.className = "statement-cell amount";
+  hAmount.textContent = "Amount";
+
+  var hPctIncome = document.createElement("span");
+  hPctIncome.className = "statement-cell pct";
+  hPctIncome.textContent = "% of income";
+
+  var hPctSection = document.createElement("span");
+  hPctSection.className = "statement-cell pct-section";
+  hPctSection.textContent =
+    sectionType === "Income" ? "" : "% of expenses";
+
+  headerRow.appendChild(hLabel);
+  headerRow.appendChild(hAmount);
+  headerRow.appendChild(hPctIncome);
+  headerRow.appendChild(hPctSection);
+  section.appendChild(headerRow);
+
+  // Roots for this section (top-level categories of the correct type)
+  var roots = (childrenMap["root"] || []).filter(function (c) {
+    return c.type === sectionType;
+  });
+
+  roots.forEach(function (root) {
+    var nodeEl = buildStatementTreeNode({
+      node: root,
+      level: 0,
+      sectionType: sectionType,
+      amountByCategory: amountByCategory,
+      childrenMap: childrenMap,
+      totalIncome: totalIncome,
+      totalExpenses: totalExpenses
+    });
+    section.appendChild(nodeEl);
+  });
+
+  return section;
+}
+
+/**
+ * Recursive builder: one <details> per category node.
+ */
+function buildStatementTreeNode(opts) {
+  var node = opts.node;
+  var level = opts.level;
+  var sectionType = opts.sectionType;
+  var amountByCategory = opts.amountByCategory;
+  var childrenMap = opts.childrenMap;
+  var totalIncome = opts.totalIncome;
+  var totalExpenses = opts.totalExpenses;
+
+  var children = (childrenMap[node.id] || []).filter(function (c) {
+    return c.type === sectionType;
+  });
+  var hasChildren = children.length > 0;
+
+  var rawAmt = amountByCategory[node.id] || 0;
+  var displayAmount =
+    node.type === "Expense" ? Math.max(-rawAmt, 0) : rawAmt;
+
+  var pctOfIncome =
+    totalIncome ? (displayAmount / totalIncome) * 100 : 0;
+
+  var sectionTotal =
+    sectionType === "Income" ? totalIncome : totalExpenses;
+
+  var pctOfSection =
+    sectionTotal ? (displayAmount / sectionTotal) * 100 : 0;
+
+  // Wrap everything in <details> so you can collapse/expand
+  var details = document.createElement("details");
+  details.open = true;
+  details.className = "statement-node level-" + level;
+  if (!hasChildren) {
+    details.classList.add("leaf");
+  }
+
+  var summary = document.createElement("summary");
+  summary.className = "statement-row";
+
+  // Label cell (with indentation + chevron)
+  var labelCell = document.createElement("span");
+  labelCell.className = "statement-cell label";
+  labelCell.style.paddingLeft = 12 + level * 20 + "px";
+
+  if (hasChildren) {
+    var chevron = document.createElement("span");
+    chevron.className = "statement-chevron";
+    chevron.textContent = "▾";
+    labelCell.appendChild(chevron);
+  } else {
+    var spacer = document.createElement("span");
+    spacer.className = "statement-chevron statement-chevron--empty";
+    spacer.textContent = "•";
+    labelCell.appendChild(spacer);
+  }
+
+  var nameSpan = document.createElement("span");
+  nameSpan.textContent = node.name;
+  labelCell.appendChild(nameSpan);
+
+  // Amount
+  var amountCell = document.createElement("span");
+  amountCell.className = "statement-cell amount";
+  amountCell.textContent = formatAmount(displayAmount);
+
+  // % of income
+  var pctIncomeCell = document.createElement("span");
+  pctIncomeCell.className = "statement-cell pct";
+  pctIncomeCell.textContent = totalIncome
+    ? pctOfIncome.toFixed(2) + "%"
+    : "-";
+
+  // % of expenses / section
+  var pctSectionCell = document.createElement("span");
+  pctSectionCell.className = "statement-cell pct-section";
+  if (sectionType === "Expense" && totalExpenses) {
+    pctSectionCell.textContent = pctOfSection.toFixed(2) + "%";
+  } else {
+    pctSectionCell.textContent = "";
+  }
+
+  summary.appendChild(labelCell);
+  summary.appendChild(amountCell);
+  summary.appendChild(pctIncomeCell);
+  summary.appendChild(pctSectionCell);
+
+  details.appendChild(summary);
+
+  // Children
+  children.forEach(function (child) {
+    var childEl = buildStatementTreeNode({
+      node: child,
+      level: level + 1,
+      sectionType: sectionType,
+      amountByCategory: amountByCategory,
+      childrenMap: childrenMap,
+      totalIncome: totalIncome,
+      totalExpenses: totalExpenses
+    });
+    details.appendChild(childEl);
+  });
+
+  return details;
+}
 // ========== IMPORT (PocketSmith-style CSV) ==========
 function setupImport() {
   console.log("setupImport");
