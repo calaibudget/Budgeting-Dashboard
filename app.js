@@ -1150,13 +1150,15 @@ function renderTransactionsTab() {
   state.transactions.forEach(function (tx) {
     if (tx.account) accSet[tx.account] = true;
   });
-  Object.keys(accSet).sort().forEach(function (acc) {
-    var opt = document.createElement("option");
-    opt.value = acc;
-    opt.textContent = acc;
-    if (f.account === acc) opt.selected = true;
-    accountFilterSelect.appendChild(opt);
-  });
+  Object.keys(accSet)
+    .sort()
+    .forEach(function (acc) {
+      var opt = document.createElement("option");
+      opt.value = acc;
+      opt.textContent = acc;
+      if (f.account === acc) opt.selected = true;
+      accountFilterSelect.appendChild(opt);
+    });
 
   // Values
   searchInput.value = f.search || "";
@@ -1223,6 +1225,7 @@ function renderTransactionsTab() {
       amountMin: null,
       amountMax: null,
     };
+    clearTxSelection();
     renderTransactionsTab(); // rebuild to reset UI
   });
 
@@ -1259,4 +1262,291 @@ function renderTransactionsTab() {
   bulkApplyCatBtn.addEventListener("click", function () {
     var catId = bulkCatSelect.value;
     if (!catId || !state.txUI.selection.length) return;
-    state.transactions.forEach(function
+    state.transactions.forEach(function (tx) {
+      if (isTxSelected(tx.id)) {
+        tx.categoryId = catId;
+      }
+    });
+    renderTransactionsTableBody();
+  });
+
+  bulkApplyLabelsBtn.addEventListener("click", function () {
+    var raw = bulkLabelsInput.value || "";
+    var labels = raw
+      .split(",")
+      .map(function (s) {
+        return s.trim();
+      })
+      .filter(function (s) {
+        return s.length > 0;
+      });
+
+    if (!labels.length || !state.txUI.selection.length) return;
+
+    state.transactions.forEach(function (tx) {
+      if (isTxSelected(tx.id)) {
+        tx.labels = labels.slice();
+      }
+    });
+    renderTransactionsTableBody();
+  });
+
+  // Sort header listeners
+  var sortHeaders = card.querySelectorAll("th[data-sort-field]");
+  sortHeaders.forEach(function (th) {
+    th.addEventListener("click", function () {
+      var field = th.getAttribute("data-sort-field");
+      if (state.txUI.sortField === field) {
+        state.txUI.sortDir = state.txUI.sortDir === "asc" ? "desc" : "asc";
+      } else {
+        state.txUI.sortField = field;
+        state.txUI.sortDir = "asc";
+      }
+      renderTransactionsTableBody();
+    });
+  });
+
+  // Finally, render table body
+  renderTransactionsTableBody();
+}
+
+// ---- Render table body & row editing ----------------------------------
+function renderTransactionsTableBody() {
+  var tbody = document.getElementById("tx-tbody");
+  if (!tbody) return;
+
+  var txs = getVisibleTransactions();
+  tbody.innerHTML = "";
+
+  // Bulk bar visibility
+  var bulkBar = document.getElementById("tx-bulk-bar");
+  var bulkCount = document.getElementById("tx-bulk-count");
+  if (bulkBar && bulkCount) {
+    if (state.txUI.selection.length) {
+      bulkBar.style.display = "flex";
+      bulkCount.textContent = state.txUI.selection.length + " selected";
+    } else {
+      bulkBar.style.display = "none";
+    }
+  }
+
+  // Select-all checkbox
+  var selectAll = document.getElementById("tx-select-all");
+  if (selectAll) {
+    selectAll.onchange = null;
+    selectAll.checked =
+      txs.length > 0 &&
+      txs.every(function (tx) {
+        return isTxSelected(tx.id);
+      });
+    selectAll.addEventListener("change", function () {
+      txs.forEach(function (tx) {
+        toggleTxSelection(tx.id, selectAll.checked);
+      });
+      renderTransactionsTableBody();
+    });
+  }
+
+  txs.forEach(function (tx) {
+    var tr = document.createElement("tr");
+    var editing = state.txUI.editingId === tx.id;
+
+    // Selection cell
+    var tdSel = document.createElement("td");
+    var chk = document.createElement("input");
+    chk.type = "checkbox";
+    chk.checked = isTxSelected(tx.id);
+    chk.addEventListener("change", function () {
+      toggleTxSelection(tx.id, chk.checked);
+      renderTransactionsTableBody();
+    });
+    tdSel.appendChild(chk);
+    tr.appendChild(tdSel);
+
+    if (editing) {
+      // --- Edit mode ---
+      var dateInput = document.createElement("input");
+      dateInput.type = "date";
+      dateInput.value = tx.date || "";
+      var tdDate = document.createElement("td");
+      tdDate.appendChild(dateInput);
+      tr.appendChild(tdDate);
+
+      var descInput = document.createElement("input");
+      descInput.type = "text";
+      descInput.value = tx.description || "";
+      var tdDesc = document.createElement("td");
+      tdDesc.appendChild(descInput);
+      tr.appendChild(tdDesc);
+
+      var amtInput = document.createElement("input");
+      amtInput.type = "number";
+      amtInput.step = "0.01";
+      amtInput.value = tx.amount;
+      var tdAmt = document.createElement("td");
+      tdAmt.appendChild(amtInput);
+      tr.appendChild(tdAmt);
+
+      var catSelect = buildCategorySelectElement(tx.categoryId, true, "None");
+      var tdCat = document.createElement("td");
+      tdCat.appendChild(catSelect);
+      tr.appendChild(tdCat);
+
+      var labelsInput = document.createElement("input");
+      labelsInput.type = "text";
+      labelsInput.value = (tx.labels || []).join(", ");
+      var tdLabels = document.createElement("td");
+      tdLabels.appendChild(labelsInput);
+      tr.appendChild(tdLabels);
+
+      var accInput = document.createElement("input");
+      accInput.type = "text";
+      accInput.value = tx.account || "";
+      var tdAcc = document.createElement("td");
+      tdAcc.appendChild(accInput);
+      tr.appendChild(tdAcc);
+
+      var noteInput = document.createElement("input");
+      noteInput.type = "text";
+      noteInput.value = tx.note || "";
+      var tdNote = document.createElement("td");
+      tdNote.appendChild(noteInput);
+      tr.appendChild(tdNote);
+
+      var tdActions = document.createElement("td");
+      var saveBtn = document.createElement("button");
+      saveBtn.className = "btn btn--tiny";
+      saveBtn.textContent = "Save";
+      saveBtn.addEventListener("click", function () {
+        tx.date = dateInput.value || tx.date;
+        tx.description = descInput.value || "";
+        tx.amount = Number(amtInput.value || 0);
+        tx.categoryId = catSelect.value || null;
+        tx.labels = (labelsInput.value || "")
+          .split(",")
+          .map(function (s) {
+            return s.trim();
+          })
+          .filter(function (s) {
+            return s.length > 0;
+          });
+        tx.account = accInput.value || "";
+        tx.note = noteInput.value || "";
+        state.txUI.editingId = null;
+        renderTransactionsTableBody();
+      });
+
+      var cancelBtn = document.createElement("button");
+      cancelBtn.className = "btn btn--tiny";
+      cancelBtn.textContent = "Cancel";
+      cancelBtn.addEventListener("click", function () {
+        state.txUI.editingId = null;
+        renderTransactionsTableBody();
+      });
+
+      tdActions.appendChild(saveBtn);
+      tdActions.appendChild(cancelBtn);
+      tr.appendChild(tdActions);
+    } else {
+      // --- View mode ---
+      tr.appendChild(makeCell(tx.date || ""));
+      tr.appendChild(makeCell(tx.description || ""));
+      var amtClass =
+        "cell-amount " + (tx.amount < 0 ? "amount--negative" : "amount--positive");
+      tr.appendChild(makeCell(formatAmount(tx.amount), amtClass));
+      tr.appendChild(makeCell(getCategoryNameById(tx.categoryId) || ""));
+      tr.appendChild(makeCell((tx.labels || []).join(", ")));
+      tr.appendChild(makeCell(tx.account || ""));
+      tr.appendChild(makeCell(tx.note || ""));
+
+      var tdActionsV = document.createElement("td");
+      var editBtn = document.createElement("button");
+      editBtn.className = "btn btn--tiny";
+      editBtn.textContent = "Edit";
+      editBtn.addEventListener("click", function () {
+        state.txUI.editingId = tx.id;
+        renderTransactionsTableBody();
+      });
+      tdActionsV.appendChild(editBtn);
+      tr.appendChild(tdActionsV);
+    }
+
+    tbody.appendChild(tr);
+  });
+}
+
+// ---- Add new transaction ----------------------------------------------
+function addNewTransaction() {
+  var newId =
+    state.transactions.reduce(function (max, tx) {
+      return Math.max(max, tx.id);
+    }, 0) + 1;
+
+  var today = formatISODate(new Date());
+  var tx = {
+    id: newId,
+    date: today,
+    description: "",
+    amount: 0,
+    categoryId: "",
+    labels: [],
+    account: "",
+    note: "",
+  };
+  state.transactions.push(tx);
+  state.txUI.editingId = newId;
+  clearTxSelection();
+  renderTransactionsTableBody();
+}
+
+// ======================================================================
+// TABS + INIT
+// ======================================================================
+function setupTabs() {
+  var buttons = document.querySelectorAll(".tab-button");
+  var sections = document.querySelectorAll(".tab-section");
+
+  function showTab(name) {
+    sections.forEach(function (sec) {
+      var tab = sec.getAttribute("data-tab-section");
+      if (tab === name) {
+        sec.style.display = "block";
+      } else {
+        sec.style.display = "none";
+      }
+    });
+
+    buttons.forEach(function (btn) {
+      var t = btn.getAttribute("data-tab");
+      if (t === name) {
+        btn.classList.add("tab-button--active");
+      } else {
+        btn.classList.remove("tab-button--active");
+      }
+    });
+
+    if (name === "dashboard") {
+      renderDashboard();
+    } else if (name === "transactions") {
+      renderTransactionsTab();
+    }
+    // categories/import stay as simple static sections for now
+  }
+
+  buttons.forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var target = btn.getAttribute("data-tab");
+      showTab(target);
+    });
+  });
+
+  // Initial tab
+  showTab("dashboard");
+}
+
+function init() {
+  loadSampleData();
+  setupTabs();
+}
+
+document.addEventListener("DOMContentLoaded", init);
