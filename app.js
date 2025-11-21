@@ -337,7 +337,7 @@ function resolveDateRange() {
       } else {
         from = startOfMonth(today);
         to = endOfMonth(today);
-        label = "Custom range (invalid, fallback to this month)";
+        label = "Custom range";
       }
       break;
 
@@ -594,7 +594,7 @@ function renderDashboard() {
   });
 
   // ------------------------------------------------------------------
-  // Footer – average selector instead of text
+  // Footer – average selector
   // ------------------------------------------------------------------
   if (footerEl) {
     footerEl.innerHTML = "";
@@ -649,195 +649,141 @@ function renderDashboard() {
     });
   }
 
-  // Date-range button lives in the card around summary line
-  attachDateRangeButton(range);
+  // --- Date-range controls as DROPDOWN inside the card ---
+  setupDateRangeDropdown(range);
 }
 
 // ----------------------------------------------------------------------
-// DATE RANGE PICKER UI
+// DATE RANGE DROPDOWN (replaces popup panel)
 // ----------------------------------------------------------------------
-function attachDateRangeButton(currentRange) {
+function setupDateRangeDropdown(currentRange) {
   var summaryLineEl = document.getElementById("summary-line");
   if (!summaryLineEl) return;
 
   var card = summaryLineEl.closest(".card") || document.body;
 
-  var btn = document.getElementById("date-range-button");
-  if (!btn) {
-    btn = document.createElement("button");
-    btn.id = "date-range-button";
-    btn.className = "btn btn--ghost date-range-button";
-    card.insertBefore(btn, summaryLineEl);
-  }
-  btn.textContent = currentRange.label;
+  // Wrapper above the summary line
+  var wrapper = document.getElementById("date-range-wrapper");
+  if (!wrapper) {
+    wrapper = document.createElement("div");
+    wrapper.id = "date-range-wrapper";
+    wrapper.className = "date-range-wrapper";
 
-  setupDateRangePicker(currentRange, btn, card);
+    // Place wrapper just before the summary line
+    card.insertBefore(wrapper, summaryLineEl);
+  }
+
+  wrapper.innerHTML = ""; // clear to avoid duplications
+
+  // Left: label
+  var label = document.createElement("span");
+  label.textContent = "Period: ";
+  wrapper.appendChild(label);
+
+  // Select for date modes
+  var select = document.createElement("select");
+  select.id = "date-range-select";
+
+  var options = [
+    { value: "thisWeek", text: "This week" },
+    { value: "thisMonth", text: "This month" },
+    { value: "thisQuarter", text: "This quarter" },
+    { value: "thisYear", text: "This year" },
+    { value: "lastWeek", text: "Last week" },
+    { value: "lastMonth", text: "Last month" },
+    { value: "lastQuarter", text: "Last quarter" },
+    { value: "lastYear", text: "Last year" },
+    { value: "rollingWeek", text: "Rolling week" },
+    { value: "rollingMonth", text: "Rolling month" },
+    { value: "rollingQuarter", text: "Rolling quarter" },
+    { value: "rollingYear", text: "Rolling year" },
+    { value: "custom", text: "Custom range" },
+  ];
+
+  options.forEach(function (opt) {
+    var o = document.createElement("option");
+    o.value = opt.value;
+    o.textContent = opt.text;
+    select.appendChild(o);
+  });
+  select.value = state.dateFilter.mode;
+  wrapper.appendChild(select);
+
+  // Custom range controls (appear only when mode = custom)
+  var customBox = document.createElement("span");
+  customBox.id = "custom-range-controls";
+  customBox.style.marginLeft = "12px";
+  wrapper.appendChild(customBox);
+
+  if (state.dateFilter.mode === "custom") {
+    buildCustomRangeControls(customBox, currentRange);
+  }
+
+  select.addEventListener("change", function () {
+    var mode = this.value;
+    state.dateFilter.mode = mode;
+
+    if (mode === "custom") {
+      // For custom, initialize with current resolved range if empty
+      if (!state.dateFilter.from || !state.dateFilter.to) {
+        state.dateFilter.from = formatISODate(currentRange.from);
+        state.dateFilter.to = formatISODate(currentRange.to);
+      }
+      // Rebuild wrapper so custom controls appear
+      renderDashboard();
+    } else {
+      state.dateFilter.from = null;
+      state.dateFilter.to = null;
+      renderDashboard();
+    }
+  });
 }
 
-function setupDateRangePicker(currentRange, btn, parentCard) {
-  if (!btn || !parentCard) return;
+function buildCustomRangeControls(container, currentRange) {
+  container.innerHTML = "";
 
-  var existing = document.getElementById("date-range-panel");
-  if (existing && existing.parentNode) {
-    existing.parentNode.removeChild(existing);
-  }
+  var fromLabel = document.createElement("label");
+  fromLabel.textContent = "From: ";
+  var fromInput = document.createElement("input");
+  fromInput.type = "date";
+  fromInput.value =
+    state.dateFilter.from || formatISODate(currentRange.from);
+  fromLabel.appendChild(fromInput);
+  container.appendChild(fromLabel);
 
-  var panel = document.createElement("div");
-  panel.id = "date-range-panel";
-  panel.className = "date-panel date-panel--hidden";
+  var toLabel = document.createElement("label");
+  toLabel.style.marginLeft = "8px";
+  toLabel.textContent = "To: ";
+  var toInput = document.createElement("input");
+  toInput.type = "date";
+  toInput.value = state.dateFilter.to || formatISODate(currentRange.to);
+  toLabel.appendChild(toInput);
+  container.appendChild(toLabel);
 
-  panel.innerHTML = `
-    <div class="date-panel__cols">
-      <div class="date-panel__col">
-        <div class="date-panel__col-title">NOW</div>
-        <button data-range="thisWeek">This Week</button>
-        <button data-range="thisMonth">This Month</button>
-        <button data-range="thisQuarter">This Quarter</button>
-        <button data-range="thisYear">This Year</button>
-      </div>
-      <div class="date-panel__col">
-        <div class="date-panel__col-title">PAST</div>
-        <button data-range="lastWeek">Last Week</button>
-        <button data-range="lastMonth">Last Month</button>
-        <button data-range="lastQuarter">Last Quarter</button>
-        <button data-range="lastYear">Last Year</button>
-        <button data-range="custom">Custom Range</button>
-      </div>
-      <div class="date-panel__col">
-        <div class="date-panel__col-title">ROLL BACK</div>
-        <button data-range="rollingWeek">Rolling Week</button>
-        <button data-range="rollingMonth">Rolling Month</button>
-        <button data-range="rollingQuarter">Rolling Quarter</button>
-        <button data-range="rollingYear">Rolling Year</button>
-      </div>
-    </div>
-    <div class="date-panel__custom" id="date-panel-custom" style="display:none;">
-      <label>From: <input type="date" id="date-panel-from"></label>
-      <label>To: <input type="date" id="date-panel-to"></label>
-      <div class="date-panel__error" id="date-panel-error"></div>
-    </div>
-    <div class="date-panel__footer">
-      <button class="btn btn--ghost" id="date-panel-clear">Clear</button>
-      <div class="date-panel__spacer"></div>
-      <button class="btn btn--ghost" id="date-panel-cancel">Cancel</button>
-      <button class="btn btn--primary" id="date-panel-apply">Apply</button>
-    </div>
-  `;
+  var errorSpan = document.createElement("span");
+  errorSpan.style.color = "red";
+  errorSpan.style.marginLeft = "8px";
+  container.appendChild(errorSpan);
 
-  parentCard.appendChild(panel);
-
-  var pending = {
-    mode: state.dateFilter.mode,
-    from: state.dateFilter.from,
-    to: state.dateFilter.to,
-  };
-
-  function openPanel() {
-    panel.classList.remove("date-panel--hidden");
-  }
-
-  function closePanel() {
-    panel.classList.add("date-panel--hidden");
-  }
-
-  btn.onclick = function () {
-    if (panel.classList.contains("date-panel--hidden")) {
-      openPanel();
-    } else {
-      closePanel();
-    }
-  };
-
-  panel.querySelectorAll("button[data-range]").forEach(function (b) {
-    b.addEventListener("click", function () {
-      var mode = b.getAttribute("data-range");
-      pending.mode = mode;
-
-      var customBox = document.getElementById("date-panel-custom");
-      if (mode === "custom") {
-        customBox.style.display = "block";
-        var fromInput = document.getElementById("date-panel-from");
-        var toInput = document.getElementById("date-panel-to");
-        if (state.dateFilter.mode === "custom" && state.dateFilter.from) {
-          fromInput.value = state.dateFilter.from;
-          toInput.value = state.dateFilter.to;
-        } else {
-          fromInput.value = formatISODate(currentRange.from);
-          toInput.value = formatISODate(currentRange.to);
-        }
-      } else {
-        customBox.style.display = "none";
-      }
-    });
-  });
-
-  var fromInput = document.getElementById("date-panel-from");
-  var toInput = document.getElementById("date-panel-to");
-  var errorEl = document.getElementById("date-panel-error");
-
-  function validateCustom() {
-    if (!fromInput || !toInput || pending.mode !== "custom") return true;
+  function validateAndApply() {
     var f = fromInput.value;
     var t = toInput.value;
     if (!f || !t) {
-      errorEl.textContent = "";
-      return false;
+      errorSpan.textContent = "";
+      return;
     }
     if (f > t) {
-      errorEl.textContent = "From date must be before or equal to To date.";
-      return false;
+      errorSpan.textContent = "From must be ≤ To";
+      return;
     }
-    errorEl.textContent = "";
-    pending.from = f;
-    pending.to = t;
-    return true;
+    errorSpan.textContent = "";
+    state.dateFilter.from = f;
+    state.dateFilter.to = t;
+    renderDashboard();
   }
 
-  if (fromInput && toInput) {
-    fromInput.addEventListener("change", validateCustom);
-    toInput.addEventListener("change", validateCustom);
-  }
-
-  document.getElementById("date-panel-clear").onclick = function () {
-    pending.mode = "thisYear";
-    pending.from = null;
-    pending.to = null;
-    state.dateFilter = {
-      mode: pending.mode,
-      from: null,
-      to: null,
-    };
-    closePanel();
-    renderDashboard();
-  };
-
-  document.getElementById("date-panel-cancel").onclick = function () {
-    closePanel();
-  };
-
-  document.getElementById("date-panel-apply").onclick = function () {
-    if (pending.mode === "custom") {
-      if (!validateCustom()) return;
-    } else {
-      pending.from = null;
-      pending.to = null;
-    }
-    state.dateFilter.mode = pending.mode;
-    state.dateFilter.from = pending.from;
-    state.dateFilter.to = pending.to;
-    closePanel();
-    renderDashboard();
-  };
-
-  document.addEventListener("click", function (evt) {
-    if (
-      !panel.classList.contains("date-panel--hidden") &&
-      !panel.contains(evt.target) &&
-      evt.target !== btn
-    ) {
-      closePanel();
-    }
-  });
+  fromInput.addEventListener("change", validateAndApply);
+  toInput.addEventListener("change", validateAndApply);
 }
 
 // ----------------------------------------------------------------------
