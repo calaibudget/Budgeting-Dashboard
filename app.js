@@ -13,10 +13,13 @@ var state = {
   transactions: [],
   categories: [],
   dateFilter: {
-    mode: "thisMonth", // default
+    mode: "thisMonth", // default date range
     from: null,
     to: null,
   },
+  // How to display amounts in the tables
+  // "total" | "perDay" | "perMonth" | "perYear"
+  averageMode: "total",
 };
 
 // ----------------------------------------------------------------------
@@ -428,7 +431,6 @@ function formatPercent(value) {
   );
 }
 
-// Small helper to build table cells
 function makeCell(text, className) {
   var td = document.createElement("td");
   if (className) td.className = className;
@@ -437,7 +439,7 @@ function makeCell(text, className) {
 }
 
 // ----------------------------------------------------------------------
-// DASHBOARD RENDERING – uses existing HTML structure
+// DASHBOARD RENDERING
 // ----------------------------------------------------------------------
 function renderDashboard() {
   var summaryLineEl = document.getElementById("summary-line");
@@ -451,7 +453,6 @@ function renderDashboard() {
     return;
   }
 
-  // Clear table bodies & footer
   incomeTbody.innerHTML = "";
   expenseTbody.innerHTML = "";
   if (footerEl) footerEl.innerHTML = "";
@@ -484,7 +485,22 @@ function renderDashboard() {
   var days = daysBetweenInclusive(range.from, range.to);
   var months = range.monthsInRange || null;
 
-  // Summary line text
+  // ---------- scaling factor for average view ----------
+  var factor = 1;
+  if (state.averageMode === "perDay") {
+    factor = days > 0 ? 1 / days : 1;
+  } else if (state.averageMode === "perMonth") {
+    factor = months && months > 0 ? 1 / months : 1;
+  } else if (state.averageMode === "perYear") {
+    factor = months && months > 0 ? 12 / months : 1;
+  } else {
+    factor = 1; // "total"
+  }
+  function scaled(amount) {
+    return amount * factor;
+  }
+
+  // ---------- summary line (always totals for the period) ----------
   summaryLineEl.innerHTML =
     "Total income: <strong>" +
     formatAmount(totalIncome) +
@@ -497,14 +513,13 @@ function renderDashboard() {
     "</strong>";
 
   // ------------------------------------------------------------------
-  // Income table (4 columns, last column left empty)
+  // Income table (4 columns, last column empty)
   // ------------------------------------------------------------------
-  // Total row
   var trTotInc = document.createElement("tr");
   trTotInc.className = "row-total";
   trTotInc.appendChild(makeCell("Income"));
   trTotInc.appendChild(
-    makeCell(formatAmount(totalIncome), "cell-amount amount--positive")
+    makeCell(formatAmount(scaled(totalIncome)), "cell-amount amount--positive")
   );
   trTotInc.appendChild(
     makeCell(totalIncome !== 0 ? "100.00%" : "", "cell-percent")
@@ -512,7 +527,6 @@ function renderDashboard() {
   trTotInc.appendChild(makeCell("", "cell-percent")); // empty % of expenses
   incomeTbody.appendChild(trTotInc);
 
-  // Category rows
   incomeRows.forEach(function (row) {
     var cat = getCategoryById(row.categoryId);
     var name = cat ? cat.name : "(Uncategorised income)";
@@ -523,22 +537,19 @@ function renderDashboard() {
     var amtClass =
       "cell-amount " +
       (row.amount < 0 ? "amount--negative" : "amount--positive");
-    tr.appendChild(makeCell(formatAmount(row.amount), amtClass));
+    tr.appendChild(makeCell(formatAmount(scaled(row.amount)), amtClass));
 
     var pctIncome =
       totalIncome !== 0 ? formatPercent(row.amount / totalIncome) : "";
     tr.appendChild(makeCell(pctIncome, "cell-percent"));
 
-    // empty % of expenses column so layout matches Expenses table
-    tr.appendChild(makeCell("", "cell-percent"));
-
+    tr.appendChild(makeCell("", "cell-percent")); // empty col to align
     incomeTbody.appendChild(tr);
   });
 
   // ------------------------------------------------------------------
   // Expenses table (Category / Amount / % of income / % of expenses)
   // ------------------------------------------------------------------
-  // Total row
   var trTotExp = document.createElement("tr");
   trTotExp.className = "row-total";
   trTotExp.appendChild(makeCell("Expenses"));
@@ -546,19 +557,17 @@ function renderDashboard() {
   var totExpClass =
     "cell-amount " +
     (totalExpenses < 0 ? "amount--negative" : "amount--positive");
-  trTotExp.appendChild(makeCell(formatAmount(totalExpenses), totExpClass));
+  trTotExp.appendChild(makeCell(formatAmount(scaled(totalExpenses)), totExpClass));
 
   var totPctIncome =
     totalIncome !== 0 ? formatPercent(totalExpenses / totalIncome) : "";
   trTotExp.appendChild(makeCell(totPctIncome, "cell-percent"));
 
-  var totPctExpenses =
-    totalAbsExpenses > 0 ? "100.00%" : "";
+  var totPctExpenses = totalAbsExpenses > 0 ? "100.00%" : "";
   trTotExp.appendChild(makeCell(totPctExpenses, "cell-percent"));
 
   expenseTbody.appendChild(trTotExp);
 
-  // Category rows
   expenseRows.forEach(function (row) {
     var cat = getCategoryById(row.categoryId);
     var name = cat ? cat.name : "(Uncategorised expense)";
@@ -569,7 +578,7 @@ function renderDashboard() {
     var amtClassRow =
       "cell-amount " +
       (row.amount < 0 ? "amount--negative" : "amount--positive");
-    tr.appendChild(makeCell(formatAmount(row.amount), amtClassRow));
+    tr.appendChild(makeCell(formatAmount(scaled(row.amount)), amtClassRow));
 
     var pctInc =
       totalIncome !== 0 ? formatPercent(row.amount / totalIncome) : "";
@@ -585,39 +594,42 @@ function renderDashboard() {
   });
 
   // ------------------------------------------------------------------
-  // Footer averages
+  // Footer – average selector instead of text
   // ------------------------------------------------------------------
   if (footerEl) {
-    var dailyIncome = days > 0 ? totalIncome / days : 0;
-    var dailyExpenses = days > 0 ? totalExpenses / days : 0;
-    var dailyNet = days > 0 ? net / days : 0;
+    footerEl.innerHTML = "";
 
-    var text =
-      "Average per day – Income: " +
-      formatAmount(dailyIncome) +
-      ", Expenses: " +
-      formatAmount(dailyExpenses) +
-      ", Net: " +
-      formatAmount(dailyNet);
+    var label = document.createElement("span");
+    label.textContent = "Show amounts as: ";
 
-    if (months && months > 0) {
-      var monthlyIncome = totalIncome / months;
-      var monthlyExpenses = totalExpenses / months;
-      var monthlyNet = net / months;
-      text +=
-        " | Average per month – Income: " +
-        formatAmount(monthlyIncome) +
-        ", Expenses: " +
-        formatAmount(monthlyExpenses) +
-        ", Net: " +
-        formatAmount(monthlyNet);
-    }
+    var select = document.createElement("select");
+    select.id = "avg-mode-select";
 
-    footerEl.textContent = text;
+    var options = [
+      { value: "total", text: "Total for period" },
+      { value: "perDay", text: "Per day" },
+      { value: "perMonth", text: "Per month" },
+      { value: "perYear", text: "Per year" },
+    ];
+    options.forEach(function (opt) {
+      var o = document.createElement("option");
+      o.value = opt.value;
+      o.textContent = opt.text;
+      select.appendChild(o);
+    });
+    select.value = state.averageMode;
+
+    select.addEventListener("change", function () {
+      state.averageMode = this.value;
+      renderDashboard();
+    });
+
+    label.appendChild(select);
+    footerEl.appendChild(label);
   }
 
   // ------------------------------------------------------------------
-  // Transactions preview (first tbody#tx-tbody in DOM)
+  // Transactions preview – fills first tx-tbody (dashboard)
   // ------------------------------------------------------------------
   if (txTbody) {
     txs.forEach(function (tx) {
@@ -631,14 +643,13 @@ function renderDashboard() {
 
       var cat = getCategoryById(tx.categoryId);
       tr.appendChild(makeCell(cat ? cat.name : ""));
-
       tr.appendChild(makeCell((tx.labels || []).join(", ")));
 
       txTbody.appendChild(tr);
     });
   }
 
-  // Add / refresh date range picker button
+  // Date-range button lives in the card around summary line
   attachDateRangeButton(range);
 }
 
@@ -656,7 +667,6 @@ function attachDateRangeButton(currentRange) {
     btn = document.createElement("button");
     btn.id = "date-range-button";
     btn.className = "btn btn--ghost date-range-button";
-    // insert before summary line so it sits near the title
     card.insertBefore(btn, summaryLineEl);
   }
   btn.textContent = currentRange.label;
@@ -667,7 +677,6 @@ function attachDateRangeButton(currentRange) {
 function setupDateRangePicker(currentRange, btn, parentCard) {
   if (!btn || !parentCard) return;
 
-  // Remove existing panel if present
   var existing = document.getElementById("date-range-panel");
   if (existing && existing.parentNode) {
     existing.parentNode.removeChild(existing);
@@ -731,7 +740,6 @@ function setupDateRangePicker(currentRange, btn, parentCard) {
     panel.classList.add("date-panel--hidden");
   }
 
-  // Use onclick to avoid stacking multiple listeners across re-renders
   btn.onclick = function () {
     if (panel.classList.contains("date-panel--hidden")) {
       openPanel();
@@ -821,7 +829,6 @@ function setupDateRangePicker(currentRange, btn, parentCard) {
     renderDashboard();
   };
 
-  // simple outside-click close (will add one listener per render; OK for now)
   document.addEventListener("click", function (evt) {
     if (
       !panel.classList.contains("date-panel--hidden") &&
@@ -834,7 +841,7 @@ function setupDateRangePicker(currentRange, btn, parentCard) {
 }
 
 // ----------------------------------------------------------------------
-// TABS – use data-tab / data-tab-section
+// TABS – uses data-tab / data-tab-section from your HTML
 // ----------------------------------------------------------------------
 function setupTabs() {
   var buttons = document.querySelectorAll(".tab-button[data-tab]");
@@ -871,7 +878,6 @@ function setupTabs() {
     });
   });
 
-  // Default
   activateTab("dashboard");
 }
 
