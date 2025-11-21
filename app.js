@@ -1,7 +1,7 @@
 // app.js
 // ======================================================================
-// Budget Dashboard – core state + Dashboard (Income Statement + Date Range)
-// Tabs "Transactions", "Categories", "Import"
+// Budget Dashboard – Dashboard (Income Statement + Date Range)
+// + Transactions tab with filters, sorting, bulk actions & inline editing
 // ======================================================================
 
 console.log("App script loaded");
@@ -13,13 +13,33 @@ var state = {
   transactions: [],
   categories: [],
   dateFilter: {
-    mode: "thisMonth", // default date range
+    mode: "thisMonth", // Dashboard income-statement range
     from: null,
     to: null,
   },
-  // How to display amounts in the tables
+  // Dashboard: how to display amounts
   // "total" | "perDay" | "perMonth" | "perYear"
   averageMode: "total",
+
+  // Transactions tab UI state
+  txUI: {
+    filters: {
+      search: "",
+      dateMode: "any", // any | on | before | after | between
+      dateFrom: null,
+      dateTo: null,
+      categoryId: "",
+      label: "",
+      account: "",
+      amountMode: "any", // any | gt | lt | eq | between
+      amountMin: null,
+      amountMax: null,
+    },
+    sortField: "date", // date | description | amount | category | account
+    sortDir: "desc", // asc | desc
+    selection: [], // array of transaction ids
+    editingId: null, // id of tx currently being edited
+  },
 };
 
 // ----------------------------------------------------------------------
@@ -246,7 +266,7 @@ function monthsInRangeForMode(mode, from, to) {
 }
 
 // ----------------------------------------------------------------------
-// DATE RANGE RESOLUTION
+// DASHBOARD DATE RANGE RESOLUTION
 // ----------------------------------------------------------------------
 function resolveDateRange() {
   var mode = state.dateFilter.mode;
@@ -359,9 +379,9 @@ function resolveDateRange() {
 }
 
 // ----------------------------------------------------------------------
-// TRANSACTION FILTERING & AGGREGATION
+// DASHBOARD TRANSACTION FILTERING & AGGREGATION
 // ----------------------------------------------------------------------
-function getFilteredTransactions() {
+function getFilteredTransactionsForDashboard() {
   var range = resolveDateRange();
   var from = startOfDay(range.from);
   var to = startOfDay(range.to);
@@ -378,6 +398,11 @@ function getCategoryById(id) {
   return state.categories.find(function (c) {
     return c.id === id;
   });
+}
+
+function getCategoryNameById(id) {
+  var cat = getCategoryById(id);
+  return cat ? cat.name : "";
 }
 
 function getCategoryTypeForTx(tx) {
@@ -446,7 +471,6 @@ function renderDashboard() {
   var incomeTbody = document.getElementById("income-tbody");
   var expenseTbody = document.getElementById("expense-tbody");
   var footerEl = document.getElementById("statement-footer");
-  var txTbody = document.getElementById("tx-tbody");
 
   if (!summaryLineEl || !incomeTbody || !expenseTbody) {
     console.warn("Dashboard elements not found");
@@ -456,10 +480,9 @@ function renderDashboard() {
   incomeTbody.innerHTML = "";
   expenseTbody.innerHTML = "";
   if (footerEl) footerEl.innerHTML = "";
-  if (txTbody) txTbody.innerHTML = "";
 
   var range = resolveDateRange();
-  var txs = getFilteredTransactions();
+  var txs = getFilteredTransactionsForDashboard();
   var aggregates = aggregateByCategory(txs);
 
   var incomeRows = aggregates.filter(function (r) {
@@ -485,7 +508,6 @@ function renderDashboard() {
   var days = daysBetweenInclusive(range.from, range.to);
   var months = range.monthsInRange || null;
 
-  // ---------- scaling factor for average view ----------
   var factor = 1;
   if (state.averageMode === "perDay") {
     factor = days > 0 ? 1 / days : 1;
@@ -493,14 +515,12 @@ function renderDashboard() {
     factor = months && months > 0 ? 1 / months : 1;
   } else if (state.averageMode === "perYear") {
     factor = months && months > 0 ? 12 / months : 1;
-  } else {
-    factor = 1; // "total"
   }
+
   function scaled(amount) {
     return amount * factor;
   }
 
-  // ---------- summary line (always totals for the period) ----------
   summaryLineEl.innerHTML =
     "Total income: <strong>" +
     formatAmount(totalIncome) +
@@ -512,9 +532,7 @@ function renderDashboard() {
     formatPercent(savingRate) +
     "</strong>";
 
-  // ------------------------------------------------------------------
-  // Income table (4 columns, last column empty)
-  // ------------------------------------------------------------------
+  // ---------- Income table ----------
   var trTotInc = document.createElement("tr");
   trTotInc.className = "row-total";
   trTotInc.appendChild(makeCell("Income"));
@@ -528,10 +546,9 @@ function renderDashboard() {
   incomeTbody.appendChild(trTotInc);
 
   incomeRows.forEach(function (row) {
-    var cat = getCategoryById(row.categoryId);
-    var name = cat ? cat.name : "(Uncategorised income)";
-
+    var name = getCategoryNameById(row.categoryId) || "(Uncategorised income)";
     var tr = document.createElement("tr");
+
     tr.appendChild(makeCell(name));
 
     var amtClass =
@@ -543,13 +560,11 @@ function renderDashboard() {
       totalIncome !== 0 ? formatPercent(row.amount / totalIncome) : "";
     tr.appendChild(makeCell(pctIncome, "cell-percent"));
 
-    tr.appendChild(makeCell("", "cell-percent")); // empty col to align
+    tr.appendChild(makeCell("", "cell-percent"));
     incomeTbody.appendChild(tr);
   });
 
-  // ------------------------------------------------------------------
-  // Expenses table (Category / Amount / % of income / % of expenses)
-  // ------------------------------------------------------------------
+  // ---------- Expenses table ----------
   var trTotExp = document.createElement("tr");
   trTotExp.className = "row-total";
   trTotExp.appendChild(makeCell("Expenses"));
@@ -557,7 +572,9 @@ function renderDashboard() {
   var totExpClass =
     "cell-amount " +
     (totalExpenses < 0 ? "amount--negative" : "amount--positive");
-  trTotExp.appendChild(makeCell(formatAmount(scaled(totalExpenses)), totExpClass));
+  trTotExp.appendChild(
+    makeCell(formatAmount(scaled(totalExpenses)), totExpClass)
+  );
 
   var totPctIncome =
     totalIncome !== 0 ? formatPercent(totalExpenses / totalIncome) : "";
@@ -569,10 +586,9 @@ function renderDashboard() {
   expenseTbody.appendChild(trTotExp);
 
   expenseRows.forEach(function (row) {
-    var cat = getCategoryById(row.categoryId);
-    var name = cat ? cat.name : "(Uncategorised expense)";
-
+    var name = getCategoryNameById(row.categoryId) || "(Uncategorised expense)";
     var tr = document.createElement("tr");
+
     tr.appendChild(makeCell(name));
 
     var amtClassRow =
@@ -593,9 +609,7 @@ function renderDashboard() {
     expenseTbody.appendChild(tr);
   });
 
-  // ------------------------------------------------------------------
-  // Footer – average selector
-  // ------------------------------------------------------------------
+  // ---------- Footer – average selector ----------
   if (footerEl) {
     footerEl.innerHTML = "";
 
@@ -628,33 +642,12 @@ function renderDashboard() {
     footerEl.appendChild(label);
   }
 
-  // ------------------------------------------------------------------
-  // Transactions preview – fills first tx-tbody (dashboard)
-  // ------------------------------------------------------------------
-  if (txTbody) {
-    txs.forEach(function (tx) {
-      var tr = document.createElement("tr");
-      tr.appendChild(makeCell(tx.date));
-      tr.appendChild(makeCell(tx.description));
-
-      var amtClass =
-        tx.amount < 0 ? "amount--negative cell-amount" : "amount--positive cell-amount";
-      tr.appendChild(makeCell(formatAmount(tx.amount), amtClass));
-
-      var cat = getCategoryById(tx.categoryId);
-      tr.appendChild(makeCell(cat ? cat.name : ""));
-      tr.appendChild(makeCell((tx.labels || []).join(", ")));
-
-      txTbody.appendChild(tr);
-    });
-  }
-
-  // --- Date-range controls as DROPDOWN inside the card ---
+  // ---------- Date-range dropdown only on dashboard ----------
   setupDateRangeDropdown(range);
 }
 
 // ----------------------------------------------------------------------
-// DATE RANGE DROPDOWN (replaces popup panel)
+// DASHBOARD DATE RANGE DROPDOWN
 // ----------------------------------------------------------------------
 function setupDateRangeDropdown(currentRange) {
   var summaryLineEl = document.getElementById("summary-line");
@@ -662,25 +655,20 @@ function setupDateRangeDropdown(currentRange) {
 
   var card = summaryLineEl.closest(".card") || document.body;
 
-  // Wrapper above the summary line
   var wrapper = document.getElementById("date-range-wrapper");
   if (!wrapper) {
     wrapper = document.createElement("div");
     wrapper.id = "date-range-wrapper";
     wrapper.className = "date-range-wrapper";
-
-    // Place wrapper just before the summary line
     card.insertBefore(wrapper, summaryLineEl);
   }
 
-  wrapper.innerHTML = ""; // clear to avoid duplications
+  wrapper.innerHTML = "";
 
-  // Left: label
   var label = document.createElement("span");
   label.textContent = "Period: ";
   wrapper.appendChild(label);
 
-  // Select for date modes
   var select = document.createElement("select");
   select.id = "date-range-select";
 
@@ -709,7 +697,6 @@ function setupDateRangeDropdown(currentRange) {
   select.value = state.dateFilter.mode;
   wrapper.appendChild(select);
 
-  // Custom range controls (appear only when mode = custom)
   var customBox = document.createElement("span");
   customBox.id = "custom-range-controls";
   customBox.style.marginLeft = "12px";
@@ -724,12 +711,10 @@ function setupDateRangeDropdown(currentRange) {
     state.dateFilter.mode = mode;
 
     if (mode === "custom") {
-      // For custom, initialize with current resolved range if empty
       if (!state.dateFilter.from || !state.dateFilter.to) {
         state.dateFilter.from = formatISODate(currentRange.from);
         state.dateFilter.to = formatISODate(currentRange.to);
       }
-      // Rebuild wrapper so custom controls appear
       renderDashboard();
     } else {
       state.dateFilter.from = null;
@@ -786,54 +771,492 @@ function buildCustomRangeControls(container, currentRange) {
   toInput.addEventListener("change", validateAndApply);
 }
 
-// ----------------------------------------------------------------------
-// TABS – uses data-tab / data-tab-section from your HTML
-// ----------------------------------------------------------------------
-function setupTabs() {
-  var buttons = document.querySelectorAll(".tab-button[data-tab]");
-  var sections = document.querySelectorAll(".tab-section[data-tab-section]");
+// ======================================================================
+// TRANSACTIONS TAB
+// ======================================================================
 
-  if (!buttons.length || !sections.length) return;
+// ---- Category helpers for dropdowns -----------------------------------
+function buildCategoryOptionsFlat() {
+  var childrenMap = {};
+  state.categories.forEach(function (c) {
+    var key = c.parentId || "root";
+    if (!childrenMap[key]) childrenMap[key] = [];
+    childrenMap[key].push(c);
+  });
 
-  function activateTab(name) {
-    sections.forEach(function (sec) {
-      if (sec.getAttribute("data-tab-section") === name) {
-        sec.style.display = "block";
-      } else {
-        sec.style.display = "none";
-      }
-    });
-
-    buttons.forEach(function (btn) {
-      if (btn.getAttribute("data-tab") === name) {
-        btn.classList.add("tab-button--active");
-      } else {
-        btn.classList.remove("tab-button--active");
-      }
-    });
-
-    if (name === "dashboard") {
-      renderDashboard();
-    }
-  }
-
-  buttons.forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      var target = btn.getAttribute("data-tab");
-      activateTab(target);
+  Object.keys(childrenMap).forEach(function (k) {
+    childrenMap[k].sort(function (a, b) {
+      return a.name.localeCompare(b.name);
     });
   });
 
-  activateTab("dashboard");
+  var result = [];
+
+  function walk(node, depth) {
+    result.push({
+      id: node.id,
+      name: node.name,
+      depth: depth,
+      type: node.type,
+    });
+    var kids = childrenMap[node.id] || [];
+    kids.forEach(function (child) {
+      walk(child, depth + 1);
+    });
+  }
+
+  var roots = childrenMap["root"] || [];
+  roots.forEach(function (root) {
+    walk(root, 0);
+  });
+
+  return result;
 }
 
-// ----------------------------------------------------------------------
-// INIT
-// ----------------------------------------------------------------------
-function init() {
-  console.log("DOMContentLoaded fired");
-  loadSampleData();
-  setupTabs();
+function buildCategorySelectElement(selectedId, includeAny, anyLabel) {
+  var select = document.createElement("select");
+
+  if (includeAny) {
+    var optAny = document.createElement("option");
+    optAny.value = "";
+    optAny.textContent = anyLabel || "All categories";
+    select.appendChild(optAny);
+  }
+
+  var flat = buildCategoryOptionsFlat();
+  flat.forEach(function (c) {
+    var opt = document.createElement("option");
+    opt.value = c.id;
+    var prefix = c.depth > 0 ? Array(c.depth + 1).join("  ") + "- " : "";
+    opt.textContent = prefix + c.name;
+    if (selectedId && selectedId === c.id) opt.selected = true;
+    select.appendChild(opt);
+  });
+
+  return select;
 }
 
-document.addEventListener("DOMContentLoaded", init);
+// ---- Transactions filtering & sorting --------------------------------
+function ensureTxUIState() {
+  if (!state.txUI) {
+    state.txUI = {
+      filters: {
+        search: "",
+        dateMode: "any",
+        dateFrom: null,
+        dateTo: null,
+        categoryId: "",
+        label: "",
+        account: "",
+        amountMode: "any",
+        amountMin: null,
+        amountMax: null,
+      },
+      sortField: "date",
+      sortDir: "desc",
+      selection: [],
+      editingId: null,
+    };
+  }
+}
+
+function getVisibleTransactions() {
+  ensureTxUIState();
+  var f = state.txUI.filters;
+  var txs = state.transactions.slice();
+
+  // 1) Global text search
+  if (f.search && f.search.trim() !== "") {
+    var term = f.search.trim().toLowerCase();
+    txs = txs.filter(function (tx) {
+      var catName = getCategoryNameById(tx.categoryId) || "";
+      var labelsStr = (tx.labels || []).join(", ");
+      var haystack =
+        (tx.description || "") +
+        " " +
+        (tx.note || "") +
+        " " +
+        catName +
+        " " +
+        (tx.account || "") +
+        " " +
+        labelsStr;
+      return haystack.toLowerCase().indexOf(term) >= 0;
+    });
+  }
+
+  // 2) Date filter
+  if (f.dateMode !== "any") {
+    txs = txs.filter(function (tx) {
+      var d = parseISODate(tx.date);
+      var dIso = formatISODate(d);
+      var from = f.dateFrom;
+      var to = f.dateTo;
+      if (f.dateMode === "on") {
+        if (!from) return true;
+        return dIso === from;
+      }
+      if (f.dateMode === "before") {
+        if (!from) return true;
+        return dIso <= from;
+      }
+      if (f.dateMode === "after") {
+        if (!from) return true;
+        return dIso >= from;
+      }
+      if (f.dateMode === "between") {
+        if (!from || !to) return true;
+        return dIso >= from && dIso <= to;
+      }
+      return true;
+    });
+  }
+
+  // 3) Category filter (exact match)
+  if (f.categoryId) {
+    txs = txs.filter(function (tx) {
+      return tx.categoryId === f.categoryId;
+    });
+  }
+
+  // 4) Label filter (simple contains in labels array)
+  if (f.label && f.label.trim() !== "") {
+    var labelTerm = f.label.trim().toLowerCase();
+    txs = txs.filter(function (tx) {
+      return (tx.labels || []).some(function (lb) {
+        return lb.toLowerCase().indexOf(labelTerm) >= 0;
+      });
+    });
+  }
+
+  // 5) Account filter
+  if (f.account && f.account !== "") {
+    txs = txs.filter(function (tx) {
+      return (tx.account || "") === f.account;
+    });
+  }
+
+  // 6) Amount filter
+  if (f.amountMode !== "any") {
+    var min = f.amountMin != null && f.amountMin !== "" ? Number(f.amountMin) : null;
+    var max = f.amountMax != null && f.amountMax !== "" ? Number(f.amountMax) : null;
+
+    txs = txs.filter(function (tx) {
+      var a = Number(tx.amount || 0);
+      if (f.amountMode === "gt") {
+        if (min == null) return true;
+        return a > min;
+      }
+      if (f.amountMode === "lt") {
+        if (max == null) return true;
+        return a < max;
+      }
+      if (f.amountMode === "eq") {
+        if (min == null) return true;
+        return a === min;
+      }
+      if (f.amountMode === "between") {
+        if (min == null || max == null) return true;
+        return a >= min && a <= max;
+      }
+      return true;
+    });
+  }
+
+  // Sorting
+  var field = state.txUI.sortField;
+  var dir = state.txUI.sortDir === "asc" ? 1 : -1;
+
+  txs.sort(function (a, b) {
+    var av, bv;
+    if (field === "date") {
+      av = a.date;
+      bv = b.date;
+      if (av < bv) return -1 * dir;
+      if (av > bv) return 1 * dir;
+      return 0;
+    }
+    if (field === "description") {
+      av = (a.description || "").toLowerCase();
+      bv = (b.description || "").toLowerCase();
+      if (av < bv) return -1 * dir;
+      if (av > bv) return 1 * dir;
+      return 0;
+    }
+    if (field === "amount") {
+      av = Number(a.amount || 0);
+      bv = Number(b.amount || 0);
+      if (av < bv) return -1 * dir;
+      if (av > bv) return 1 * dir;
+      return 0;
+    }
+    if (field === "category") {
+      av = getCategoryNameById(a.categoryId).toLowerCase();
+      bv = getCategoryNameById(b.categoryId).toLowerCase();
+      if (av < bv) return -1 * dir;
+      if (av > bv) return 1 * dir;
+      return 0;
+    }
+    if (field === "account") {
+      av = (a.account || "").toLowerCase();
+      bv = (b.account || "").toLowerCase();
+      if (av < bv) return -1 * dir;
+      if (av > bv) return 1 * dir;
+      return 0;
+    }
+    return 0;
+  });
+
+  return txs;
+}
+
+// ---- Selection helpers ------------------------------------------------
+function isTxSelected(id) {
+  return state.txUI.selection.indexOf(id) >= 0;
+}
+
+function toggleTxSelection(id, isSelected) {
+  var idx = state.txUI.selection.indexOf(id);
+  if (isSelected) {
+    if (idx === -1) state.txUI.selection.push(id);
+  } else {
+    if (idx >= 0) state.txUI.selection.splice(idx, 1);
+  }
+}
+
+function clearTxSelection() {
+  state.txUI.selection = [];
+}
+
+// ---- Transactions tab rendering --------------------------------------
+function renderTransactionsTab() {
+  ensureTxUIState();
+
+  var section = document.querySelector(
+    '.tab-section[data-tab-section="transactions"]'
+  );
+  if (!section) return;
+
+  // Build card structure
+  section.innerHTML = "";
+  var card = document.createElement("section");
+  card.className = "card";
+  card.innerHTML = `
+    <div class="section-title-row">
+      <div class="section-title">Transactions</div>
+      <button class="btn btn--primary" id="tx-add-button">Add transaction</button>
+    </div>
+    <div class="section-subtitle">
+      Search, filter, edit and bulk-update your transactions.
+    </div>
+
+    <div class="tx-filters" id="tx-filters">
+      <input type="text" id="tx-filter-search" placeholder="Search description, note, category, labels, account" />
+
+      <select id="tx-filter-date-mode">
+        <option value="any">Date: any</option>
+        <option value="on">On</option>
+        <option value="before">Before</option>
+        <option value="after">After</option>
+        <option value="between">Between</option>
+      </select>
+      <input type="date" id="tx-filter-date-from" />
+      <input type="date" id="tx-filter-date-to" />
+
+      <select id="tx-filter-category"></select>
+
+      <input type="text" id="tx-filter-label" placeholder="Label" />
+
+      <select id="tx-filter-account">
+        <option value="">All accounts</option>
+      </select>
+
+      <select id="tx-filter-amount-mode">
+        <option value="any">Amount: any</option>
+        <option value="gt">&gt;</option>
+        <option value="lt">&lt;</option>
+        <option value="eq">=</option>
+        <option value="between">Between</option>
+      </select>
+      <input type="number" id="tx-filter-amount-min" placeholder="Min" />
+      <input type="number" id="tx-filter-amount-max" placeholder="Max" />
+
+      <button class="btn btn--ghost" id="tx-filter-clear">Clear filters</button>
+    </div>
+
+    <div class="tx-bulk-bar" id="tx-bulk-bar" style="display:none;">
+      <span id="tx-bulk-count">0 selected</span>
+      <button class="btn btn--ghost" id="tx-bulk-delete">Delete</button>
+
+      <span class="tx-bulk-group">
+        <span>Set category:</span>
+        <select id="tx-bulk-category"></select>
+        <button class="btn btn--ghost" id="tx-bulk-apply-category">Apply</button>
+      </span>
+
+      <span class="tx-bulk-group">
+        <span>Set labels:</span>
+        <input type="text" id="tx-bulk-labels" placeholder="label1, label2" />
+        <button class="btn btn--ghost" id="tx-bulk-apply-labels">Apply</button>
+      </span>
+    </div>
+
+    <table class="transactions-table">
+      <thead>
+        <tr>
+          <th><input type="checkbox" id="tx-select-all" /></th>
+          <th data-sort-field="date">Date</th>
+          <th data-sort-field="description">Description</th>
+          <th data-sort-field="amount">Amount</th>
+          <th data-sort-field="category">Category</th>
+          <th>Labels</th>
+          <th data-sort-field="account">Account</th>
+          <th>Note</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="tx-tbody"></tbody>
+    </table>
+  `;
+  section.appendChild(card);
+
+  // --- Populate filters with state values ---
+  var f = state.txUI.filters;
+
+  var searchInput = document.getElementById("tx-filter-search");
+  var dateModeSel = document.getElementById("tx-filter-date-mode");
+  var dateFromInput = document.getElementById("tx-filter-date-from");
+  var dateToInput = document.getElementById("tx-filter-date-to");
+  var catFilterSelect = document.getElementById("tx-filter-category");
+  var labelFilterInput = document.getElementById("tx-filter-label");
+  var accountFilterSelect = document.getElementById("tx-filter-account");
+  var amountModeSel = document.getElementById("tx-filter-amount-mode");
+  var amountMinInput = document.getElementById("tx-filter-amount-min");
+  var amountMaxInput = document.getElementById("tx-filter-amount-max");
+  var clearBtn = document.getElementById("tx-filter-clear");
+
+  // Category filter dropdown
+  var catFilterSelectEl = buildCategorySelectElement(
+    f.categoryId,
+    true,
+    "All categories"
+  );
+  catFilterSelect.parentNode.replaceChild(catFilterSelectEl, catFilterSelect);
+  catFilterSelect = catFilterSelectEl;
+  catFilterSelect.id = "tx-filter-category";
+
+  // Account filter options from state.transactions
+  var accSet = {};
+  state.transactions.forEach(function (tx) {
+    if (tx.account) accSet[tx.account] = true;
+  });
+  Object.keys(accSet).sort().forEach(function (acc) {
+    var opt = document.createElement("option");
+    opt.value = acc;
+    opt.textContent = acc;
+    if (f.account === acc) opt.selected = true;
+    accountFilterSelect.appendChild(opt);
+  });
+
+  // Values
+  searchInput.value = f.search || "";
+  dateModeSel.value = f.dateMode || "any";
+  if (f.dateFrom) dateFromInput.value = f.dateFrom;
+  if (f.dateTo) dateToInput.value = f.dateTo;
+  labelFilterInput.value = f.label || "";
+  amountModeSel.value = f.amountMode || "any";
+  if (f.amountMin != null) amountMinInput.value = f.amountMin;
+  if (f.amountMax != null) amountMaxInput.value = f.amountMax;
+
+  // Filter listeners
+  searchInput.addEventListener("input", function () {
+    state.txUI.filters.search = this.value;
+    renderTransactionsTableBody();
+  });
+  dateModeSel.addEventListener("change", function () {
+    state.txUI.filters.dateMode = this.value;
+    renderTransactionsTableBody();
+  });
+  dateFromInput.addEventListener("change", function () {
+    state.txUI.filters.dateFrom = this.value || null;
+    renderTransactionsTableBody();
+  });
+  dateToInput.addEventListener("change", function () {
+    state.txUI.filters.dateTo = this.value || null;
+    renderTransactionsTableBody();
+  });
+  catFilterSelect.addEventListener("change", function () {
+    state.txUI.filters.categoryId = this.value || "";
+    renderTransactionsTableBody();
+  });
+  labelFilterInput.addEventListener("input", function () {
+    state.txUI.filters.label = this.value;
+    renderTransactionsTableBody();
+  });
+  accountFilterSelect.addEventListener("change", function () {
+    state.txUI.filters.account = this.value || "";
+    renderTransactionsTableBody();
+  });
+  amountModeSel.addEventListener("change", function () {
+    state.txUI.filters.amountMode = this.value;
+    renderTransactionsTableBody();
+  });
+  amountMinInput.addEventListener("change", function () {
+    state.txUI.filters.amountMin = this.value;
+    renderTransactionsTableBody();
+  });
+  amountMaxInput.addEventListener("change", function () {
+    state.txUI.filters.amountMax = this.value;
+    renderTransactionsTableBody();
+  });
+
+  clearBtn.addEventListener("click", function () {
+    state.txUI.filters = {
+      search: "",
+      dateMode: "any",
+      dateFrom: null,
+      dateTo: null,
+      categoryId: "",
+      label: "",
+      account: "",
+      amountMode: "any",
+      amountMin: null,
+      amountMax: null,
+    };
+    renderTransactionsTab(); // rebuild to reset UI
+  });
+
+  // Add transaction button
+  var addBtn = document.getElementById("tx-add-button");
+  addBtn.addEventListener("click", function () {
+    addNewTransaction();
+  });
+
+  // Bulk bar category select
+  var bulkCatSelect = document.getElementById("tx-bulk-category");
+  var bulkCatSelectEl = buildCategorySelectElement(null, true, "Choose category");
+  bulkCatSelect.parentNode.replaceChild(bulkCatSelectEl, bulkCatSelect);
+  bulkCatSelect = bulkCatSelectEl;
+  bulkCatSelect.id = "tx-bulk-category";
+
+  // Bulk buttons
+  var bulkDeleteBtn = document.getElementById("tx-bulk-delete");
+  var bulkApplyCatBtn = document.getElementById("tx-bulk-apply-category");
+  var bulkLabelsInput = document.getElementById("tx-bulk-labels");
+  var bulkApplyLabelsBtn = document.getElementById("tx-bulk-apply-labels");
+
+  bulkDeleteBtn.addEventListener("click", function () {
+    if (!state.txUI.selection.length) return;
+    if (!confirm("Delete selected transactions?")) return;
+
+    state.transactions = state.transactions.filter(function (tx) {
+      return !isTxSelected(tx.id);
+    });
+    clearTxSelection();
+    renderTransactionsTableBody();
+  });
+
+  bulkApplyCatBtn.addEventListener("click", function () {
+    var catId = bulkCatSelect.value;
+    if (!catId || !state.txUI.selection.length) return;
+    state.transactions.forEach(function
