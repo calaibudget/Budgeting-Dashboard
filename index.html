@@ -7,169 +7,118 @@
   </head>
   <body>
     <div class="app-shell">
-      <!-- HEADER -->
+      <!-- Header -->
       <header class="app-header">
         <div class="app-title">Budget Dashboard</div>
         <nav class="tab-bar">
-          <button
-            class="tab-button"
-            data-tab-target="tab-dashboard"
-          >
-            Dashboard
-          </button>
-          <button
-            class="tab-button"
-            data-tab-target="tab-transactions"
-          >
-            Transactions
-          </button>
-          <button
-            class="tab-button"
-            data-tab-target="tab-categories"
-          >
-            Categories
-          </button>
-          <button class="tab-button" data-tab-target="tab-import">
-            Import
-          </button>
+          <button class="tab-button" data-tab="dashboard">Dashboard</button>
+          <button class="tab-button" data-tab="transactions">Transactions</button>
+          <button class="tab-button" data-tab="categories">Categories</button>
+          <button class="tab-button" data-tab="import">Import</button>
         </nav>
       </header>
 
       <!-- DASHBOARD TAB -->
-      <section id="tab-dashboard" class="tab-content">
-        <div class="panel">
-          <div class="period-bar">
-            <span>Period:</span>
-            <select id="period-select">
-              <option value="1m">Last month</option>
-              <option value="3m">Last 3 months</option>
-              <option value="6m">Last 6 months</option>
-              <option value="ytd">Year to date</option>
-              <option value="custom">Custom</option>
-            </select>
-            <div id="custom-range" class="hidden">
-              <input id="date-from" type="date" />
-              <input id="date-to" type="date" />
+      <main class="tab-section" data-tab-section="dashboard">
+        <section class="card">
+          <div class="section-title">Income statement</div>
+          <div id="summary-line" class="section-subtitle">
+            Summary of income and expenses for the selected period.
+          </div>
+
+          <div class="statement-cols">
+            <!-- Income -->
+            <div>
+              <h3 class="section-title">Income</h3>
+              <table class="statement-table">
+                <thead>
+                  <tr>
+                    <th>Category</th>
+                    <th class="cell-amount">Amount</th>
+                    <th class="cell-percent">% of income</th>
+                  </tr>
+                </thead>
+                <tbody id="income-tbody"></tbody>
+              </table>
+            </div>
+
+            <!-- Expenses -->
+            <div>
+              <h3 class="section-title">Expenses</h3>
+              <table class="statement-table">
+                <thead>
+                  <tr>
+                    <th>Category</th>
+                    <th class="cell-amount">Amount</th>
+                    <th class="cell-percent">% of expenses</th>
+                  </tr>
+                </thead>
+                <tbody id="expense-tbody"></tbody>
+              </table>
             </div>
           </div>
 
-          <h2>Income statement</h2>
-          <p class="panel-subtitle">
-            Summary of income and expenses for the selected period.
-          </p>
+          <div id="statement-footer" class="statement-footer"></div>
+        </section>
 
-          <div id="income-statement"></div>
-        </div>
-      </section>
-
-      <!-- TRANSACTIONS TAB -->
-      <section id="tab-transactions" class="tab-content">
-        <div class="panel">
-          <div class="transactions-header">Transactions</div>
-
+        <!-- Transactions preview under dashboard (optional) -->
+        <section class="card transactions-card">
+          <div class="section-title">Transactions (current filter)</div>
           <table class="transactions-table">
             <thead>
               <tr>
-                <th class="tx-col-select"></th>
                 <th>Date</th>
                 <th>Description</th>
-                <th class="col-amount">Amount</th>
+                <th>Amount</th>
                 <th>Category</th>
                 <th>Labels</th>
               </tr>
             </thead>
-            <tbody id="transactions-body"></tbody>
+            <tbody id="tx-tbody"></tbody>
           </table>
-        </div>
+        </section>
+      </main>
+
+      <!-- TRANSACTIONS TAB (will be expanded later) -->
+      <section class="tab-section" data-tab-section="transactions">
+        <section class="card">
+          <div class="section-title">Transactions</div>
+          <div class="section-subtitle">
+            Full transaction editor will live here (filters, labels, etc.).
+          </div>
+          <table class="transactions-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Description</th>
+                <th>Amount</th>
+                <th>Category</th>
+                <th>Labels</th>
+              </tr>
+            </thead>
+            <tbody id="tx-tbody"></tbody>
+          </table>
+        </section>
       </section>
 
-      <!-- CATEGORIES TAB -->
-      <section id="tab-categories" class="tab-content">
-        <div class="panel">
-          <h2>Categories</h2>
-          <p class="panel-subtitle">
-            Visual tree of income and expense categories. Edit the structure
-            using the text editors.
-          </p>
-
-          <div class="categories-layout">
-            <!-- Trees -->
-            <div class="categories-column">
-              <h3>Income categories</h3>
-              <div id="income-tree" class="tree-container"></div>
-
-              <h3 class="mt-8">Expense categories</h3>
-              <div id="expense-tree" class="tree-container"></div>
-            </div>
-
-            <!-- Editors -->
-            <div class="categories-column">
-              <div class="categories-editor">
-                <h3>Categories editor</h3>
-                <small
-                  >Paste your category tree here, one line per category. Use
-                  dashes for levels (no dash = top level, - = level 1, -- =
-                  level 2, etc.). Put income categories on the left box and
-                  expense categories on the right box.</small
-                >
-
-                <label for="income-editor"><strong>Income</strong></label>
-                <textarea id="income-editor"></textarea>
-
-                <label for="expense-editor" class="mt-8"
-                  ><strong>Expenses</strong></label
-                >
-                <textarea id="expense-editor"></textarea>
-
-                <button
-                  id="update-categories"
-                  class="primary"
-                  type="button"
-                >
-                  Update categories
-                </button>
-              </div>
-            </div>
+      <!-- CATEGORIES TAB placeholder -->
+      <section class="tab-section" data-tab-section="categories">
+        <section class="card">
+          <div class="section-title">Categories</div>
+          <div class="section-subtitle">
+            Income &amp; Expense category editors will go here in the next step.
           </div>
-        </div>
+        </section>
       </section>
 
-      <!-- IMPORT TAB -->
-      <section id="tab-import" class="tab-content">
-        <div class="panel">
-          <h2>Import transactions</h2>
-          <p class="panel-subtitle">
-            Upload a PocketSmith CSV export. You can append or replace your
-            transactions.
-          </p>
-
-          <div class="import-body">
-            <div class="import-row">
-              <strong>CSV file:</strong>
-              <input id="import-file" type="file" accept=".csv" />
-            </div>
-            <div class="import-row">
-              <label>
-                <input
-                  id="import-clear-existing"
-                  type="checkbox"
-                  checked
-                />
-                Clear existing transactions before import
-              </label>
-            </div>
-            <div class="import-row">
-              <button id="import-button" class="primary" type="button">
-                Import CSV
-              </button>
-            </div>
-            <div
-              id="import-status"
-              class="import-row"
-              style="color: #b7c3e6"
-            ></div>
+      <!-- IMPORT TAB placeholder -->
+      <section class="tab-section" data-tab-section="import">
+        <section class="card">
+          <div class="section-title">Import</div>
+          <div class="section-subtitle">
+            CSV import logic (PocketSmith export) will go here.
           </div>
-        </div>
+        </section>
       </section>
     </div>
 
