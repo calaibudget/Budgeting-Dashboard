@@ -2,6 +2,7 @@
 // ======================================================================
 // Budget Dashboard – Dashboard (Income Statement + Date Range)
 // + Transactions tab with filters, sorting, bulk actions & inline editing
+// + Categories editor + CSV Import
 // ======================================================================
 
 console.log("App script loaded");
@@ -41,6 +42,14 @@ var state = {
     editingId: null, // id of tx currently being edited
   },
 };
+
+// Import tab state
+var importState = {
+  pendingTransactions: [],
+};
+
+// Category id counter for user-created categories
+var nextCategoryId = 1;
 
 // ----------------------------------------------------------------------
 // SAMPLE DATA
@@ -938,8 +947,10 @@ function getVisibleTransactions() {
 
   // 6) Amount filter
   if (f.amountMode !== "any") {
-    var min = f.amountMin != null && f.amountMin !== "" ? Number(f.amountMin) : null;
-    var max = f.amountMax != null && f.amountMax !== "" ? Number(f.amountMax) : null;
+    var min =
+      f.amountMin != null && f.amountMin !== "" ? Number(f.amountMin) : null;
+    var max =
+      f.amountMax != null && f.amountMax !== "" ? Number(f.amountMax) : null;
 
     txs = txs.filter(function (tx) {
       var a = Number(tx.amount || 0);
@@ -1500,53 +1511,256 @@ function addNewTransaction() {
 }
 
 // ======================================================================
-// TABS + INIT
+// CATEGORIES TAB
 // ======================================================================
-function setupTabs() {
-  var buttons = document.querySelectorAll(".tab-button");
-  var sections = document.querySelectorAll(".tab-section");
+function generateCategoryId() {
+  return "user-cat-" + nextCategoryId++;
+}
 
-  function showTab(name) {
-    sections.forEach(function (sec) {
-      var tab = sec.getAttribute("data-tab-section");
-      if (tab === name) {
-        sec.style.display = "block";
-      } else {
-        sec.style.display = "none";
-      }
+function renderCategoriesTab() {
+  var section = document.querySelector(
+    '.tab-section[data-tab-section="categories"]'
+  );
+  if (!section) return;
+
+  section.innerHTML = "";
+  var card = document.createElement("section");
+  card.className = "card";
+  card.innerHTML = `
+    <div class="section-title-row">
+      <div class="section-title">Categories</div>
+      <button class="btn btn--primary" id="cat-add-button">Add category</button>
+    </div>
+    <div class="section-subtitle">
+      Manage your Income and Expense categories. These are used in the Dashboard and Transactions tabs.
+    </div>
+    <table class="categories-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Parent</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="cat-tbody"></tbody>
+    </table>
+  `;
+  section.appendChild(card);
+
+  var tbody = document.getElementById("cat-tbody");
+  var flat = buildCategoryOptionsFlat();
+
+  flat.forEach(function (info) {
+    var cat = getCategoryById(info.id);
+    if (!cat) return;
+
+    var tr = document.createElement("tr");
+
+    // Name
+    var tdName = document.createElement("td");
+    var nameInput = document.createElement("input");
+    nameInput.type = "text";
+    nameInput.value = cat.name;
+    nameInput.style.paddingLeft = info.depth * 16 + "px";
+    nameInput.addEventListener("change", function () {
+      cat.name = nameInput.value || "";
     });
+    tdName.appendChild(nameInput);
+    tr.appendChild(tdName);
 
-    buttons.forEach(function (btn) {
-      var t = btn.getAttribute("data-tab");
-      if (t === name) {
-        btn.classList.add("tab-button--active");
-      } else {
-        btn.classList.remove("tab-button--active");
-      }
+    // Type
+    var tdType = document.createElement("td");
+    var typeSelect = document.createElement("select");
+    ["income", "expense"].forEach(function (t) {
+      var opt = document.createElement("option");
+      opt.value = t;
+      opt.textContent = t.charAt(0).toUpperCase() + t.slice(1);
+      if (cat.type === t) opt.selected = true;
+      typeSelect.appendChild(opt);
     });
-
-    if (name === "dashboard") {
-      renderDashboard();
-    } else if (name === "transactions") {
-      renderTransactionsTab();
-    }
-    // categories/import stay as simple static sections for now
-  }
-
-  buttons.forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      var target = btn.getAttribute("data-tab");
-      showTab(target);
+    typeSelect.addEventListener("change", function () {
+      cat.type = typeSelect.value;
+      cat.parentId = null; // reset parent when type changes
+      renderCategoriesTab();
     });
+    tdType.appendChild(typeSelect);
+    tr.appendChild(tdType);
+
+    // Parent
+    var tdParent = document.createElement("td");
+    var parentSelect = document.createElement("select");
+    var optNone = document.createElement("option");
+    optNone.value = "";
+    optNone.textContent = "(Top level)";
+    parentSelect.appendChild(optNone);
+
+    state.categories
+      .filter(function (c) {
+        return c.id !== cat.id && c.type === cat.type;
+      })
+      .forEach(function (c) {
+        var opt = document.createElement("option");
+        opt.value = c.id;
+        opt.textContent = c.name;
+        if (cat.parentId === c.id) opt.selected = true;
+        parentSelect.appendChild(opt);
+      });
+
+    parentSelect.addEventListener("change", function () {
+      cat.parentId = parentSelect.value || null;
+      renderCategoriesTab();
+    });
+    tdParent.appendChild(parentSelect);
+    tr.appendChild(tdParent);
+
+    // Actions
+    var tdActions = document.createElement("td");
+    var delBtn = document.createElement("button");
+    delBtn.className = "btn btn--tiny";
+    delBtn.textContent = "Delete";
+    delBtn.addEventListener("click", function () {
+      if (
+        !confirm(
+          "Delete this category? Transactions using it will lose their category."
+        )
+      )
+        return;
+
+      // remove category
+      state.categories = state.categories.filter(function (c) {
+        return c.id !== cat.id;
+      });
+
+      // detach children
+      state.categories.forEach(function (c) {
+        if (c.parentId === cat.id) c.parentId = null;
+      });
+
+      // clear from transactions
+      state.transactions.forEach(function (tx) {
+        if (tx.categoryId === cat.id) tx.categoryId = "";
+      });
+
+      renderCategoriesTab();
+    });
+    tdActions.appendChild(delBtn);
+    tr.appendChild(tdActions);
+
+    tbody.appendChild(tr);
   });
 
-  // Initial tab
-  showTab("dashboard");
+  var addBtn = document.getElementById("cat-add-button");
+  addBtn.addEventListener("click", function () {
+    var newCat = {
+      id: generateCategoryId(),
+      name: "New category",
+      parentId: null,
+      type: "expense",
+    };
+    state.categories.push(newCat);
+    renderCategoriesTab();
+  });
 }
 
-function init() {
-  loadSampleData();
-  setupTabs();
+// ======================================================================
+// IMPORT TAB
+// ======================================================================
+function splitCsvLine(line) {
+  // Simple CSV parser supporting quotes and commas inside quotes
+  var result = [];
+  var current = "";
+  var inQuotes = false;
+
+  for (var i = 0; i < line.length; i++) {
+    var ch = line[i];
+
+    if (ch === '"') {
+      if (inQuotes && i + 1 < line.length && line[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (ch === "," && !inQuotes) {
+      result.push(current);
+      current = "";
+    } else {
+      current += ch;
+    }
+  }
+  result.push(current);
+  return result;
 }
 
-document.addEventListener("DOMContentLoaded", init);
+function normaliseImportedDate(str) {
+  str = (str || "").trim();
+  if (!str) return formatISODate(new Date());
+
+  // ISO yyyy-mm-dd
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+
+  // dd/mm/yyyy or dd-mm-yyyy
+  var m = /^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/.exec(str);
+  if (m) {
+    var d = Number(m[1]);
+    var mo = Number(m[2]);
+    var y = Number(m[3]);
+    var date = new Date(y, mo - 1, d);
+    return formatISODate(date);
+  }
+
+  var parsed = new Date(str);
+  if (!isNaN(parsed.getTime())) return formatISODate(parsed);
+
+  return formatISODate(new Date());
+}
+
+function parseCsvIntoImportState(text) {
+  importState.pendingTransactions = [];
+  if (!text) return;
+
+  var lines = text
+    .split(/\r?\n/)
+    .filter(function (l) {
+      return l.trim().length > 0;
+    });
+  if (!lines.length) return;
+
+  var headers = splitCsvLine(lines[0]).map(function (h) {
+    return h.trim().replace(/^"|"$/g, "");
+  });
+
+  function idx(name) {
+    return headers.findIndex(function (h) {
+      return h.toLowerCase() === name.toLowerCase();
+    });
+  }
+
+  var iDate = idx("Date");
+  var iDesc = idx("Description");
+  var iAmount = idx("Amount");
+  var iCategory = idx("Category");
+  var iLabels = idx("Labels");
+  var iAccount = idx("Account");
+  var iNote = idx("Note");
+
+  if (iDate === -1 || iDesc === -1 || iAmount === -1) {
+    throw new Error("CSV must have at least Date, Description, Amount headers.");
+  }
+
+  var baseId =
+    state.transactions.reduce(function (max, tx) {
+      return Math.max(max, tx.id);
+    }, 0) + 1;
+  var counter = 0;
+
+  for (var li = 1; li < lines.length; li++) {
+    var rowText = lines[li];
+    if (!rowText.trim()) continue;
+
+    var cols = splitCsvLine(rowText);
+
+    function col(i) {
+      return i >= 0 && i < cols.length
+        ? cols[i].trim().replace(/^"|"
